@@ -2,12 +2,16 @@ const mysql = require('mysql2/promise');
 
 // Database configuration
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'kubikportal',
-  port: process.env.DB_PORT || 3306,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT,
   multipleStatements: true,
+  // SSL configuration for TiDB Cloud and other secure MySQL hosts
+  ssl: process.env.DB_HOST && process.env.DB_HOST.includes('tidbcloud.com')
+    ? { minVersion: 'TLSv1.2', rejectUnauthorized: true }
+    : undefined,
 };
 
 // Create connection pool
@@ -19,15 +23,19 @@ module.exports = pool;
 // Also export configuration objects for session store
 module.exports.connection = dbConfig;
 module.exports.session = {
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'kubikportal',
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   clearExpired: true,
   checkExpirationInterval: 900000, // 15 min
   expiration: 86400000, // 1 day
   createDatabaseTable: true,
+  // SSL configuration for TiDB Cloud
+  ssl: process.env.DB_HOST && process.env.DB_HOST.includes('tidbcloud.com')
+    ? { minVersion: 'TLSv1.2', rejectUnauthorized: true }
+    : undefined,
   schema: {
     tableName: 'sessions',
     columnNames: {
