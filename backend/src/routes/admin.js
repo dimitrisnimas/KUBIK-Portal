@@ -454,19 +454,20 @@ router.get('/tickets', requireAdmin, async (req, res) => {
 
     // Fetch messages for each ticket
     for (let ticket of tickets) {
-      SELECT * FROM ticket_messages 
-        WHERE ticket_id = ?
+      const [messages] = await db.execute(`
+        SELECT * FROM ticket_messages 
+        WHERE ticket_id = ? 
         ORDER BY created_at ASC
       `, [ticket.id]);
-      
+
       // Map messages to include sender name
       ticket.messages = messages.map(msg => ({
         ...msg,
-        sender_name: msg.sender_type === 'admin' 
-          ? 'Admin' 
-          : `${ ticket.first_name } ${ ticket.last_name } `
+        sender_name: msg.sender_type === 'admin'
+          ? 'Admin'
+          : `${ticket.first_name} ${ticket.last_name} `
       }));
-      
+
       ticket.messages = messages;
       ticket.client = {
         first_name: ticket.first_name,
@@ -474,7 +475,7 @@ router.get('/tickets', requireAdmin, async (req, res) => {
         email: ticket.client_email
       };
     }
-    
+
     res.json(tickets);
   } catch (error) {
     console.error('Admin tickets error:', error);
@@ -491,7 +492,7 @@ router.post('/tickets/:id/reply', requireAdmin, async (req, res) => {
       INSERT INTO ticket_messages(ticket_id, sender_type, content, created_at)
       VALUES(?, 'admin', ?, NOW())
         `, [ticketId, content]);
-    
+
     // When an admin replies, update the status to 'answered' to reflect that it's waiting on the client.
     // The client-side should then set it back to 'customer-reply' when they respond.
     await db.execute('UPDATE tickets SET status = ?, updated_at = NOW() WHERE id = ?', ['answered', ticketId]);
@@ -532,17 +533,17 @@ router.get('/packages', requireAdmin, async (req, res) => {
 router.post('/packages', requireAdmin, async (req, res) => {
   try {
     const { name, description, price, currency, billing_cycle, category, category_id, features, is_active } = req.body;
-    
+
     // Validate required fields
     if (!name || !price) {
       return res.status(400).json({ error: 'Name and price are required' });
     }
-    
+
     // Set default values for optional fields
     const safeDescription = description || null;
     const safeCurrency = currency || 'EUR';
     const safeBillingCycle = billing_cycle || 'monthly';
-    
+
     // Handle both category and category_id fields
     let safeCategoryId = null;
     if (category_id) {
@@ -558,10 +559,10 @@ router.post('/packages', requireAdmin, async (req, res) => {
         console.error('Error finding category:', error);
       }
     }
-    
+
     const safeFeatures = features ? JSON.stringify(features) : '[]';
     const safeIsActive = is_active !== undefined ? is_active : true;
-    
+
     const [result] = await db.execute(`
       INSERT INTO packages(name, description, price, currency, billing_cycle, category_id, features, is_active, created_at)
       VALUES(?, ?, ?, ?, ?, ?, ?, ?, NOW())
@@ -576,20 +577,20 @@ router.post('/packages', requireAdmin, async (req, res) => {
 router.put('/packages/:id', requireAdmin, async (req, res) => {
   try {
 
-    
+
     const { name, description, price, currency, billing_cycle, category, category_id, features, is_active } = req.body;
-    
+
     // Validate required fields
     if (!name || !price) {
 
       return res.status(400).json({ error: 'Name and price are required' });
     }
-    
+
     // Set default values for optional fields
     const safeDescription = description || null;
     const safeCurrency = currency || 'EUR';
     const safeBillingCycle = billing_cycle || 'monthly';
-    
+
     // Handle both category and category_id fields
     let safeCategoryId = null;
     if (category_id) {
@@ -606,18 +607,18 @@ router.put('/packages/:id', requireAdmin, async (req, res) => {
         console.error('Error finding category:', error);
       }
     }
-    
+
     const safeFeatures = features ? JSON.stringify(features) : '[]';
     const safeIsActive = is_active !== undefined ? is_active : true;
-    
 
-    
+
+
     await db.execute(`
       UPDATE packages 
       SET name = ?, description = ?, price = ?, currency = ?, billing_cycle = ?, category_id = ?, features = ?, is_active = ?
         WHERE id = ?
           `, [name, safeDescription, price, safeCurrency, safeBillingCycle, safeCategoryId, safeFeatures, safeIsActive, req.params.id]);
-    
+
 
     res.json({ message: 'Package updated successfully' });
   } catch (error) {
@@ -738,13 +739,13 @@ router.get('/email-templates', requireAdmin, async (req, res) => {
       FROM email_templates 
       ORDER BY name
         `);
-    
+
     // Parse variables JSON for each template
     const processedTemplates = templates.map(template => ({
       ...template,
       variables: template.variables ? JSON.parse(template.variables) : []
     }));
-    
+
     res.json(processedTemplates);
   } catch (error) {
     console.error('Admin email templates error:', error);
@@ -755,12 +756,12 @@ router.get('/email-templates', requireAdmin, async (req, res) => {
 router.post('/email-templates', requireAdmin, async (req, res) => {
   try {
     const { name, subject, content, variables, is_active } = req.body;
-    
+
     const [result] = await db.execute(`
       INSERT INTO email_templates(name, subject, body, variables, is_active, created_at, updated_at)
       VALUES(?, ?, ?, ?, ?, NOW(), NOW())
         `, [name, subject, content, JSON.stringify(variables || []), is_active ? 1 : 0]);
-    
+
     res.status(201).json({
       message: 'Email template created successfully',
       id: result.insertId
@@ -774,13 +775,13 @@ router.post('/email-templates', requireAdmin, async (req, res) => {
 router.put('/email-templates/:id', requireAdmin, async (req, res) => {
   try {
     const { name, subject, content, variables, is_active } = req.body;
-    
+
     await db.execute(`
       UPDATE email_templates 
       SET name = ?, subject = ?, body = ?, variables = ?, is_active = ?, updated_at = NOW()
       WHERE id = ?
         `, [name, subject, content, JSON.stringify(variables || []), is_active ? 1 : 0, req.params.id]);
-    
+
     res.json({ message: 'Email template updated successfully' });
   } catch (error) {
     console.error('Update email template error:', error);
@@ -804,16 +805,16 @@ router.post('/settings/test-email', requireAdmin, async (req, res) => {
     const [admins] = await db.execute(
       'SELECT u.email FROM users u JOIN portal_admins pa ON u.id = pa.user_id WHERE pa.role = "super_admin" LIMIT 1'
     );
-    
+
     if (admins.length === 0) {
       return res.status(400).json({ error: 'No admin email found' });
     }
-    
+
     // Send test email
     await sendEmail('test_email', admins[0].email, {
       test_message: 'This is a test email from KubikPortal system.'
     });
-    
+
     res.json({ message: 'Test email sent successfully' });
   } catch (error) {
     console.error('Test email error:', error);
@@ -839,17 +840,17 @@ router.get('/settings', requireAdmin, async (req, res) => {
       FROM system_settings 
       ORDER BY setting_key
     `);
-    
+
     // Convert settings array to object and reconstruct nested objects
     const settingsObject = {};
     settings.forEach(setting => {
       try {
         const value = JSON.parse(setting.setting_value);
-        
+
         // Handle nested keys (e.g., "company.name" -> company: { name: value })
         const keys = setting.setting_key.split('.');
         let current = settingsObject;
-        
+
         for (let i = 0; i < keys.length - 1; i++) {
           const key = keys[i];
           if (!current[key]) {
@@ -857,13 +858,13 @@ router.get('/settings', requireAdmin, async (req, res) => {
           }
           current = current[key];
         }
-        
+
         current[keys[keys.length - 1]] = value;
       } catch (e) {
         // If JSON parsing fails, use the raw value
         const keys = setting.setting_key.split('.');
         let current = settingsObject;
-        
+
         for (let i = 0; i < keys.length - 1; i++) {
           const key = keys[i];
           if (!current[key]) {
@@ -871,11 +872,11 @@ router.get('/settings', requireAdmin, async (req, res) => {
           }
           current = current[key];
         }
-        
+
         current[keys[keys.length - 1]] = setting.setting_value;
       }
     });
-    
+
     res.json(settingsObject);
   } catch (error) {
     console.error('Admin settings error:', error);
@@ -903,7 +904,7 @@ router.put('/settings', requireAdmin, async (req, res) => {
     const flattenObject = (obj, prefix = '') => {
       const flattened = {};
       for (const [key, value] of Object.entries(obj)) {
-        const newKey = prefix ? `${ prefix }.${ key } ` : key;
+        const newKey = prefix ? `${prefix}.${key} ` : key;
         if (value && typeof value === 'object' && !Array.isArray(value)) {
           Object.assign(flattened, flattenObject(value, newKey));
         } else {
