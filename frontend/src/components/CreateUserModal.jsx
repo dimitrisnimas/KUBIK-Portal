@@ -68,6 +68,23 @@ export default function CreateUserModal({ isOpen, onClose, onSubmit }) {
               {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
             </div>
 
+            <div>
+              <label className="form-label">Κωδικός Πρόσβασης</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="Εισάγετε κωδικό πρόσβασης"
+                {...register('password', {
+                  required: 'Ο κωδικός πρόσβασης είναι υποχρεωτικός',
+                  minLength: {
+                    value: 8,
+                    message: 'Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες'
+                  }
+                })}
+              />
+              {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>}
+            </div>
+
             <div className="flex space-x-3">
               <button type="submit" className="btn btn-primary btn-md flex-1">
                 <UserPlus className="h-4 w-4 mr-2" />
