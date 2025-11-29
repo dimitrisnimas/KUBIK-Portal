@@ -24,8 +24,8 @@ const handleMulterError = (error, req, res, next) => {
   if (error instanceof multer.MulterError) {
     console.log('Multer error:', error);
     if (error.code === 'LIMIT_UNEXPECTED_FILE') {
-      return res.status(400).json({ 
-        error: `Unexpected file field: ${error.field}. Expected field name: pdf_file` 
+      return res.status(400).json({
+        error: `Unexpected file field: ${error.field}. Expected field name: pdf_file`
       });
     }
     return res.status(400).json({ error: error.message });
@@ -38,14 +38,14 @@ async function getVatRate() {
   const [settings] = await db.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'billing.vat_rate' LIMIT 1");
   if (settings.length > 0) {
     let raw = settings[0].setting_value;
-    
+
     // Try to parse as JSON first (since values are stored as JSON strings)
     try {
       raw = JSON.parse(raw);
     } catch (e) {
       // If JSON parse fails, use raw value
     }
-    
+
     const rate = parseFloat(raw);
     if (!isNaN(rate) && rate >= 0) return rate / 100;
   }
@@ -142,30 +142,30 @@ router.get('/dashboard-data', requireAdmin, async (req, res) => {
 router.post('/users', requireAdmin, async (req, res) => {
   try {
     const { first_name, last_name, email, password } = req.body;
-    
+
     // Validate required fields
     if (!first_name || !last_name || !email || !password) {
       return res.status(400).json({ error: 'All fields are required' });
     }
-    
+
     // Check if email already exists
     const [existingUsers] = await db.execute('SELECT id FROM users WHERE email = ?', [email]);
     if (existingUsers.length > 0) {
       return res.status(400).json({ error: 'Email already exists' });
     }
-    
+
     // Hash password (you should use bcrypt in production)
     const bcrypt = require('bcrypt');
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     const [result] = await db.execute(`
       INSERT INTO users (first_name, last_name, email, password_hash, status, created_at)
       VALUES (?, ?, ?, ?, 'approved', NOW())
     `, [first_name, last_name, email, hashedPassword]);
-    
-    res.status(201).json({ 
-      id: result.insertId, 
-      message: 'User created successfully' 
+
+    res.status(201).json({
+      id: result.insertId,
+      message: 'User created successfully'
     });
   } catch (error) {
     console.error('Create user error:', error);
@@ -342,19 +342,19 @@ router.post('/billing/manual-payment', requireAdmin, async (req, res) => {
 router.post('/billing/upload-invoice', requireAdmin, upload.single('pdf_file'), handleMulterError, async (req, res) => {
   try {
 
-    
+
     // Check for Multer errors
     if (req.fileValidationError) {
       return res.status(400).json({ error: req.fileValidationError });
     }
-    
+
     const { client_id, asset_id, amount, due_date, description } = req.body;
-    
+
     // Validate required fields
     if (!client_id || !asset_id || !amount || !due_date) {
       return res.status(400).json({ error: 'Client ID, Asset ID, Amount, and Due Date are required' });
     }
-    
+
     // Validate client_id is a real user
     const [clientRows] = await db.execute('SELECT id FROM users WHERE id = ?', [client_id]);
     if (clientRows.length === 0) {
@@ -377,9 +377,9 @@ router.post('/billing/upload-invoice', requireAdmin, upload.single('pdf_file'), 
     const lastNumber = maxInvoice[0].max_num || 0;
     const invoiceNumber = `INV-${assetName}-${lastNumber + 1}`;
 
-    
+
     const adminUserId = req.session.userId;
-    
+
     let filePath = null;
     let fileName = null;
     let fileSize = null;
@@ -397,11 +397,11 @@ router.post('/billing/upload-invoice', requireAdmin, upload.single('pdf_file'), 
       INSERT INTO invoices (user_id, asset_id, invoice_number, amount, vat_amount, total_amount, description, status, due_date, created_at, uploaded_by, filename, file_path, file_size)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW(), ?, ?, ?, ?)
     `, [client_id, asset_id, invoiceNumber, numericAmount, vatAmount, totalAmount, description, due_date, adminUserId, fileName, filePath, fileSize]);
-    
-    res.status(201).json({ 
-      id: result.insertId, 
+
+    res.status(201).json({
+      id: result.insertId,
       invoice_number: invoiceNumber,
-      message: 'Invoice uploaded successfully' 
+      message: 'Invoice uploaded successfully'
     });
   } catch (error) {
     console.error('Upload invoice error:', error);
@@ -418,11 +418,11 @@ router.get('/billing/download/:id', requireAdmin, async (req, res) => {
       LEFT JOIN assets a ON i.asset_id = a.id
       WHERE i.id = ?
     `, [req.params.id]);
-    
+
     if (invoice.length === 0) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
-    
+
     const pdfPath = invoice[0].file_path;
     if (pdfPath && fs.existsSync(pdfPath)) {
       return res.download(pdfPath, path.basename(pdfPath));
@@ -451,20 +451,21 @@ router.get('/tickets', requireAdmin, async (req, res) => {
     }
     query += ' ORDER BY t.created_at DESC';
     const [tickets] = await db.execute(query, params);
-    
+
     // Fetch messages for each ticket
     for (let ticket of tickets) {
-      const [messages] = await db.execute(`
-        SELECT tm.*, u.first_name, u.last_name,
-               CASE 
-                 WHEN tm.sender_type = 'admin' THEN 'Admin'
-                 ELSE CONCAT(u.first_name, ' ', u.last_name)
-               END as sender_name
-        FROM ticket_messages tm
-        LEFT JOIN users u ON (tm.sender_type = 'client' AND EXISTS (SELECT 1 FROM tickets WHERE id = tm.ticket_id AND user_id = u.id))
-        WHERE tm.ticket_id = ?
-        ORDER BY tm.created_at ASC
+      SELECT * FROM ticket_messages 
+        WHERE ticket_id = ?
+        ORDER BY created_at ASC
       `, [ticket.id]);
+      
+      // Map messages to include sender name
+      ticket.messages = messages.map(msg => ({
+        ...msg,
+        sender_name: msg.sender_type === 'admin' 
+          ? 'Admin' 
+          : `${ ticket.first_name } ${ ticket.last_name } `
+      }));
       
       ticket.messages = messages;
       ticket.client = {
@@ -487,9 +488,9 @@ router.post('/tickets/:id/reply', requireAdmin, async (req, res) => {
     const ticketId = req.params.id;
 
     await db.execute(`
-      INSERT INTO ticket_messages (ticket_id, sender_type, content, created_at)
-      VALUES (?, 'admin', ?, NOW())
-    `, [ticketId, content]);
+      INSERT INTO ticket_messages(ticket_id, sender_type, content, created_at)
+      VALUES(?, 'admin', ?, NOW())
+        `, [ticketId, content]);
     
     // When an admin replies, update the status to 'answered' to reflect that it's waiting on the client.
     // The client-side should then set it back to 'customer-reply' when they respond.
@@ -520,7 +521,7 @@ router.get('/packages', requireAdmin, async (req, res) => {
       FROM packages p
       LEFT JOIN categories c ON p.category_id = c.id
       ORDER BY p.created_at DESC
-    `);
+        `);
     res.json(packages);
   } catch (error) {
     console.error('Admin packages error:', error);
@@ -562,9 +563,9 @@ router.post('/packages', requireAdmin, async (req, res) => {
     const safeIsActive = is_active !== undefined ? is_active : true;
     
     const [result] = await db.execute(`
-      INSERT INTO packages (name, description, price, currency, billing_cycle, category_id, features, is_active, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
-    `, [name, safeDescription, price, safeCurrency, safeBillingCycle, safeCategoryId, safeFeatures, safeIsActive]);
+      INSERT INTO packages(name, description, price, currency, billing_cycle, category_id, features, is_active, created_at)
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        `, [name, safeDescription, price, safeCurrency, safeBillingCycle, safeCategoryId, safeFeatures, safeIsActive]);
     res.json({ id: result.insertId, message: 'Package created successfully' });
   } catch (error) {
     console.error('Create package error:', error);
@@ -614,8 +615,8 @@ router.put('/packages/:id', requireAdmin, async (req, res) => {
     await db.execute(`
       UPDATE packages 
       SET name = ?, description = ?, price = ?, currency = ?, billing_cycle = ?, category_id = ?, features = ?, is_active = ?
-      WHERE id = ?
-    `, [name, safeDescription, price, safeCurrency, safeBillingCycle, safeCategoryId, safeFeatures, safeIsActive, req.params.id]);
+        WHERE id = ?
+          `, [name, safeDescription, price, safeCurrency, safeBillingCycle, safeCategoryId, safeFeatures, safeIsActive, req.params.id]);
     
 
     res.json({ message: 'Package updated successfully' });
@@ -643,7 +644,7 @@ router.get('/packages/:id/subscribers', requireAdmin, async (req, res) => {
       INNER JOIN assets a ON u.id = a.user_id
       WHERE a.package_id = ? AND a.status = 'active'
       ORDER BY u.created_at DESC
-    `, [req.params.id]);
+        `, [req.params.id]);
     res.json(subscribers);
   } catch (error) {
     console.error('Get package subscribers error:', error);
@@ -660,7 +661,7 @@ router.get('/packages/available', requireAuth, async (req, res) => {
       LEFT JOIN categories c ON p.category_id = c.id
       WHERE p.is_active = 1
       ORDER BY p.name
-    `);
+        `);
 
     // Parse features JSON for each package
     const processedPackages = packages.map(pkg => ({
@@ -736,7 +737,7 @@ router.get('/email-templates', requireAdmin, async (req, res) => {
       SELECT id, name, subject, body as content, variables, is_active, created_at, updated_at
       FROM email_templates 
       ORDER BY name
-    `);
+        `);
     
     // Parse variables JSON for each template
     const processedTemplates = templates.map(template => ({
@@ -756,9 +757,9 @@ router.post('/email-templates', requireAdmin, async (req, res) => {
     const { name, subject, content, variables, is_active } = req.body;
     
     const [result] = await db.execute(`
-      INSERT INTO email_templates (name, subject, body, variables, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, NOW(), NOW())
-    `, [name, subject, content, JSON.stringify(variables || []), is_active ? 1 : 0]);
+      INSERT INTO email_templates(name, subject, body, variables, is_active, created_at, updated_at)
+      VALUES(?, ?, ?, ?, ?, NOW(), NOW())
+        `, [name, subject, content, JSON.stringify(variables || []), is_active ? 1 : 0]);
     
     res.status(201).json({
       message: 'Email template created successfully',
@@ -778,7 +779,7 @@ router.put('/email-templates/:id', requireAdmin, async (req, res) => {
       UPDATE email_templates 
       SET name = ?, subject = ?, body = ?, variables = ?, is_active = ?, updated_at = NOW()
       WHERE id = ?
-    `, [name, subject, content, JSON.stringify(variables || []), is_active ? 1 : 0, req.params.id]);
+        `, [name, subject, content, JSON.stringify(variables || []), is_active ? 1 : 0, req.params.id]);
     
     res.json({ message: 'Email template updated successfully' });
   } catch (error) {
@@ -902,7 +903,7 @@ router.put('/settings', requireAdmin, async (req, res) => {
     const flattenObject = (obj, prefix = '') => {
       const flattened = {};
       for (const [key, value] of Object.entries(obj)) {
-        const newKey = prefix ? `${prefix}.${key}` : key;
+        const newKey = prefix ? `${ prefix }.${ key } ` : key;
         if (value && typeof value === 'object' && !Array.isArray(value)) {
           Object.assign(flattened, flattenObject(value, newKey));
         } else {
@@ -933,9 +934,9 @@ router.put('/settings', requireAdmin, async (req, res) => {
     // Insert new settings with updated_by field
     for (const [key, value] of Object.entries(flattenedSettings)) {
       await db.execute(`
-        INSERT INTO system_settings (setting_key, setting_value, setting_type, updated_by, updated_at)
-        VALUES (?, ?, ?, ?, NOW())
-      `, [key, JSON.stringify(value), typeof value, adminUserId]);
+        INSERT INTO system_settings(setting_key, setting_value, setting_type, updated_by, updated_at)
+      VALUES(?, ?, ?, ?, NOW())
+        `, [key, JSON.stringify(value), typeof value, adminUserId]);
     }
     res.json({ message: 'Settings updated successfully' });
   } catch (error) {
@@ -1024,7 +1025,7 @@ router.get('/super-admins', requireSuperAdmin, async (req, res) => {
       JOIN portal_admins pa ON u.id = pa.user_id
       WHERE pa.role = 'super_admin'
       GROUP BY u.id, u.first_name, u.last_name, u.email
-    `);
+        `);
     res.json(superAdmins);
   } catch (error) {
     console.error('Fetch super admins error:', error);
