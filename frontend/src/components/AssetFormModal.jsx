@@ -1,4 +1,4 @@
-import { useForm, Controller } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { useEffect } from 'react'
 import toast from 'react-hot-toast'
 
@@ -7,7 +7,6 @@ export default function AssetFormModal({ isOpen, onClose, onSubmit, asset, clien
     register,
     handleSubmit,
     reset,
-    control,
     formState: { errors },
   } = useForm()
 
@@ -21,10 +20,15 @@ export default function AssetFormModal({ isOpen, onClose, onSubmit, asset, clien
           name: asset.name,
           description: asset.description,
           status: asset.status,
-          client_id: asset.client_id,
+          client_id: asset.client_id || asset.user_id, // Handle both cases
           package_id: asset.package_id,
           category_id: asset.category_id,
           billing_cycle: asset.billing_cycle,
+          business_name: asset.business_name || '',
+          vat_number: asset.vat_number || '',
+          billing_email: asset.billing_email || '',
+          address: asset.address || '',
+          billing_phone: asset.billing_phone || '',
           next_due_date: asset.next_due_date ? new Date(asset.next_due_date).toISOString().split('T')[0] : '',
           registration_date: asset.registration_date ? new Date(asset.registration_date).toISOString().split('T')[0] : '',
         })
@@ -38,6 +42,11 @@ export default function AssetFormModal({ isOpen, onClose, onSubmit, asset, clien
           package_id: '',
           category_id: '',
           billing_cycle: 'monthly',
+          business_name: '',
+          vat_number: '',
+          billing_email: '',
+          address: '',
+          billing_phone: '',
           next_due_date: '',
           registration_date: new Date().toISOString().split('T')[0],
         })
@@ -48,7 +57,16 @@ export default function AssetFormModal({ isOpen, onClose, onSubmit, asset, clien
   if (!isOpen) return null
 
   const handleFormSubmit = (data) => {
-    onSubmit(data)
+    // Map client_id to user_id and category_id to category name
+    const category = categories.find(c => c.id == data.category_id)?.name || '';
+
+    const formattedData = {
+      ...data,
+      user_id: data.client_id,
+      category: category
+    };
+
+    onSubmit(formattedData)
   }
 
   return (
@@ -113,7 +131,33 @@ export default function AssetFormModal({ isOpen, onClose, onSubmit, asset, clien
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="border-t border-slate-200 pt-4 mt-4">
+            <h3 className="text-sm font-semibold text-slate-900 mb-3">Στοιχεία Τιμολόγησης</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Επωνυμία Επιχείρησης</label>
+                <input {...register('business_name')} className="form-input" placeholder="Προαιρετικό" />
+              </div>
+              <div>
+                <label className="form-label">ΑΦΜ</label>
+                <input {...register('vat_number')} className="form-input" placeholder="Προαιρετικό" />
+              </div>
+              <div>
+                <label className="form-label">Email Τιμολόγησης</label>
+                <input {...register('billing_email')} type="email" className="form-input" placeholder="Προαιρετικό" />
+              </div>
+              <div>
+                <label className="form-label">Τηλέφωνο Τιμολόγησης</label>
+                <input {...register('billing_phone')} className="form-input" placeholder="Προαιρετικό" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="form-label">Διεύθυνση</label>
+                <input {...register('address')} className="form-input" placeholder="Προαιρετικό" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div>
               <label className="form-label">Ημερομηνία Εγγραφής</label>
               <input type="date" {...register('registration_date')} className="form-input" />
