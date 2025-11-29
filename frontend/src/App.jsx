@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
@@ -20,11 +20,19 @@ import AdminPackageManagement from './pages/AdminPackageManagement'
 import AdminBilling from './pages/AdminBilling'
 import AdminAssets from './pages/AdminAssets'
 import AdminTickets from './pages/AdminTickets'
+import ReactGA from "react-ga4";
+import { useEffect } from 'react';
+
+// Initialize Google Analytics
+const GA_MEASUREMENT_ID = import.meta.env.VITE_GOOGLE_ANALYTICS_ID;
+if (GA_MEASUREMENT_ID) {
+  ReactGA.initialize(GA_MEASUREMENT_ID);
+}
 
 function PrivateRoute({ children }) {
   try {
     const { user, loading } = useAuth()
-    
+
     if (loading) {
       return (
         <div className="min-h-screen flex items-center justify-center">
@@ -32,7 +40,7 @@ function PrivateRoute({ children }) {
         </div>
       )
     }
-    
+
     return user ? children : <Navigate to="/login" replace />
   } catch (error) {
     // Handle hot-reload context errors
@@ -47,7 +55,7 @@ function PrivateRoute({ children }) {
 function AdminRoute({ children }) {
   try {
     const { user, loading } = useAuth()
-    
+
     if (loading) {
       return (
         <div className="min-h-screen flex items-center justify-center">
@@ -55,7 +63,7 @@ function AdminRoute({ children }) {
         </div>
       )
     }
-    
+
     return user && user.admin_role === 'super_admin' ? children : <Navigate to="/" replace />
   } catch (error) {
     // Handle hot-reload context errors
@@ -70,10 +78,17 @@ function AdminRoute({ children }) {
 function AppRoutes() {
   try {
     const { user } = useAuth()
-    
+    const location = useLocation();
+
+    useEffect(() => {
+      if (GA_MEASUREMENT_ID) {
+        ReactGA.send({ hitType: "pageview", page: location.pathname + location.search });
+      }
+    }, [location]);
+
     // Determine which dashboard to show based on user role
     const DashboardComponent = user?.admin_role === 'super_admin' ? AdminDashboard : Dashboard
-  
+
     return (
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -84,14 +99,14 @@ function AppRoutes() {
           </PrivateRoute>
         }>
           <Route index element={<DashboardComponent />} />
-          
+
           {/* Client Routes */}
           <Route path="assets" element={<Assets />} />
           <Route path="services" element={<Services />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="billing" element={<Billing />} />
           <Route path="profile" element={<Profile />} />
-          
+
           {/* Super Admin Routes - Refactored for clarity and maintainability */}
           <Route path="admin" element={<AdminRoute><Outlet /></AdminRoute>}>
             <Route index element={<AdminDashboard />} />
