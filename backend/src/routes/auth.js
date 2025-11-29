@@ -1,12 +1,12 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { 
-  requireAuth, 
-  validatePassword, 
-  hashPassword, 
+const {
+  requireAuth,
+  validatePassword,
+  hashPassword,
   comparePassword,
-  logAdminActivity 
+  logAdminActivity
 } = require('../middleware/auth');
 const { sendEmail } = require('../utils/email');
 
@@ -133,7 +133,7 @@ router.post('/login', [
 
     // Set session
     req.session.userId = user.id;
-    req.session.userRole = user.status;('Session set for user:', user.id);
+    req.session.userRole = user.status;
 
     // Get admin role if applicable
     const [admins] = await db.execute(
@@ -142,17 +142,27 @@ router.post('/login', [
     );
     const adminRole = admins.length > 0 ? admins[0].role : null;
 
-    res.json({
-      message: 'Login successful',
-      user: {
-        id: user.id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        status: user.status,
-        wallet_balance: user.wallet_balance,
-        admin_role: adminRole
+    // Explicitly save session before sending response
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: 'Login failed' });
       }
+
+      console.log('Session saved for user:', user.id);
+
+      res.json({
+        message: 'Login successful',
+        user: {
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email: user.email,
+          status: user.status,
+          wallet_balance: user.wallet_balance,
+          admin_role: adminRole
+        }
+      });
     });
 
   } catch (error) {
@@ -236,7 +246,7 @@ router.post('/reset-password', [
 
     // Send reset email
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    
+
     await sendEmail('password_reset', email, {
       first_name: user.first_name,
       reset_url: resetUrl
@@ -343,9 +353,9 @@ router.put('/change-password', requireAuth, [
 // Check session status
 router.get('/session', (req, res) => {
   if (req.session.userId) {
-    res.json({ 
-      authenticated: true, 
-      userId: req.session.userId 
+    res.json({
+      authenticated: true,
+      userId: req.session.userId
     });
   } else {
     res.json({ authenticated: false });
@@ -376,7 +386,7 @@ router.get('/me', requireAuth, async (req, res) => {
     }
 
     const user = users[0];
-    
+
     res.json({
       user: {
         id: user.id,
