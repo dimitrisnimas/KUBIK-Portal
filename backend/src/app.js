@@ -20,6 +20,9 @@ const systemRouter = require('./routes/system');
 
 const app = express();
 
+// Trust proxy is required for secure cookies on Render/Cloudflare
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -46,7 +49,7 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -62,7 +65,7 @@ const sessionStore = new MySQLStore(dbConfig.session);
 // Session configuration
 app.use(session({
   key: 'kubik_portal_sid',
-  secret: process.env.SESSION_SECRET,
+  secret: process.env.SESSION_SECRET || 'your-super-secret-key-change-in-production',
   store: sessionStore,
   resave: false,
   saveUninitialized: false,
@@ -100,8 +103,8 @@ app.use('/api/dashboard', dashboardRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     version: '1.0.0'
   });
@@ -110,25 +113,25 @@ app.get('/api/health', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  
+
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'Invalid JSON' });
   }
-  
+
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({ error: 'File too large' });
   }
-  
-  res.status(500).json({ 
-    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message 
+
+  res.status(500).json({
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
   });
 });
 
 // 404 handler (move to end)
 app.use('/api/*', (req, res) => {
-  res.status(404).json({ 
+  res.status(404).json({
     error: 'Endpoint not found',
-    path: req.path 
+    path: req.path
   });
 });
 
