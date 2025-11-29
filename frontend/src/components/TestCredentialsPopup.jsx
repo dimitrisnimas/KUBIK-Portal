@@ -9,7 +9,7 @@ export default function TestCredentialsPopup() {
         {
             role: 'Admin',
             email: 'admin@kubik.gr',
-            password: 'admin'
+            password: 'superadmin'
         },
         {
             role: 'User',
@@ -79,3 +79,4 @@ export default function TestCredentialsPopup() {
         </div>
     );
 }
+
