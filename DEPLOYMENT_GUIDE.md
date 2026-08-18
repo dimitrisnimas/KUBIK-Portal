@@ -10,9 +10,9 @@ The standalone demo uses one Vercel project and one Neon PostgreSQL project.
 
 ## Vercel
 
-Import the repository with its root directory unchanged. `vercel.json` installs
-the backend and frontend from their individual lockfiles, builds the Vite app
-and exposes Express under `/api`.
+Import the repository with its root directory unchanged and select **Services**
+as the project framework. `vercel.json` builds `frontend/` as Vite and
+`backend/` as Express, then routes `/api/*` to the backend service.
 
 Configure these environment variables:
 

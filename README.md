@@ -14,14 +14,14 @@ This project is a **Monorepo** containing both the frontend and backend:
 
 ## 🚀 Deployment
 
-The frontend and API are prepared for a single Vercel project. The root build
-installs both applications from their committed lockfiles, builds the Vite
-frontend and exposes the existing Express application through `api/index.js`.
+The frontend and API deploy together as two Vercel Services in one project.
+Public `/api/*` requests are routed to the Express service and all other
+requests are routed to the Vite service.
 
 ## 🛠️ Local Development
 
 ### Prerequisites
-*   Node.js (v16+)
+*   Node.js 20+
 *   PostgreSQL 16+ or a Neon database
 
 ### Setup
