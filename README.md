@@ -1,6 +1,8 @@
 # KubikPortal
 
-A comprehensive, multi-tenant SaaS application for managing assets, tickets, billing, and services.
+A standalone portfolio demonstration for managing clients, assets, tickets,
+billing, and services. The application is not connected to the shared KUBIK
+ecosystem and does not process real billing data.
 
 ## 🏗️ Architecture
 
@@ -12,12 +14,9 @@ This project is a **Monorepo** containing both the frontend and backend:
 
 ## 🚀 Deployment
 
-We recommend a free stack for deployment:
-*   **Frontend**: Netlify
-*   **Backend**: Render
-*   **Database**: TiDB Cloud
-
-👉 **[Read the Deployment Guide](DEPLOYMENT_GUIDE.md)** for step-by-step instructions.
+The frontend and API are prepared for a single Vercel project. The root build
+installs both applications from their committed lockfiles, builds the Vite
+frontend and exposes the existing Express application through `api/index.js`.
 
 ## 🛠️ Local Development
 
