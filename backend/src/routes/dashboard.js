@@ -12,14 +12,14 @@ router.get('/data', requireAuth, async (req, res) => {
     // Get user's stats
     const [stats] = await db.execute(`
       SELECT
-        (SELECT COUNT(*) FROM assets WHERE user_id = ?) as totalAssets,
-        (SELECT COUNT(*) FROM assets WHERE user_id = ? AND status = 'active') as activeAssets,
+        (SELECT COUNT(*) FROM assets WHERE user_id = ?) as "totalAssets",
+        (SELECT COUNT(*) FROM assets WHERE user_id = ? AND status = 'active') as "activeAssets",
         (SELECT COUNT(*) FROM invoices WHERE user_id = ?) as total_invoices,
         (SELECT COUNT(*) FROM invoices WHERE user_id = ? AND status = 'pending') as pending_invoices,
-        (SELECT COUNT(*) FROM tickets WHERE user_id = ?) as totalTickets,
-        (SELECT COUNT(*) FROM tickets WHERE user_id = ? AND status IN ('open', 'in_progress')) as openTickets,
-        (SELECT IFNULL(SUM(total_amount), 0) FROM invoices WHERE user_id = ? AND status = 'paid') as total_paid,
-        (SELECT IFNULL(SUM(total_amount), 0) FROM invoices WHERE user_id = ? AND status = 'pending') as monthlyExpenses
+        (SELECT COUNT(*) FROM tickets WHERE user_id = ?) as "totalTickets",
+        (SELECT COUNT(*) FROM tickets WHERE user_id = ? AND status IN ('open', 'in_progress')) as "openTickets",
+        (SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE user_id = ? AND status = 'paid') as total_paid,
+        (SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE user_id = ? AND status = 'pending') as "monthlyExpenses"
     `, [userId, userId, userId, userId, userId, userId, userId, userId]);
 
     // Get recent assets

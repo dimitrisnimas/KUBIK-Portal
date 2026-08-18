@@ -101,10 +101,10 @@ User Management → Package Configuration → Pricing Updates → Email Template
 
 ### **Backend (Node.js/Express)**
 - ✅ **Enhanced Security** - Helmet, rate limiting, validation
-- ✅ **Database Integration** - MySQL with connection pooling
+- ✅ **Database Integration** - Neon PostgreSQL with bounded connection pooling
 - ✅ **File Upload** - Multer with size and type validation
 - ✅ **Email System** - Nodemailer with queue management
-- ✅ **Session Management** - MySQL session store
+- ✅ **Session Management** - PostgreSQL session store
 - ✅ **Admin Activity Logging** - Complete audit trail
 
 ### **Frontend (React/Vite)**
@@ -117,7 +117,7 @@ User Management → Package Configuration → Pricing Updates → Email Template
 
 ### **Deployment Architecture**
 - ✅ **Cloudflare Pages** - Frontend hosting
-- ✅ **Plesk Hosting** - Backend and database
+- ✅ **Serverless Hosting** - Vercel API and Neon PostgreSQL
 - ✅ **GitHub Integration** - Automated deployments
 - ✅ **Environment Configuration** - Secure environment variables
 
@@ -272,4 +272,4 @@ User Management → Package Configuration → Pricing Updates → Email Template
 
 ---
 
-This architecture provides a **complete, secure, and scalable** solution for your client portal with **zero third-party dependencies** and **full admin control** over all aspects of the system. 
+This architecture keeps the demo **standalone and portable**, with PostgreSQL persistence and no dependency on private KUBIK ecosystem services.

@@ -61,7 +61,7 @@ router.post('/register', [
 
     // Send notification email to admin
     const [admins] = await db.execute(
-      'SELECT u.email FROM users u JOIN portal_admins pa ON u.id = pa.user_id WHERE pa.role = "super_admin"'
+      "SELECT u.email FROM users u JOIN portal_admins pa ON u.id = pa.user_id WHERE pa.role = 'super_admin'"
     );
 
     if (admins.length > 0) {

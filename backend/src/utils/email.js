@@ -37,7 +37,7 @@ const processTemplate = (template, variables) => {
 const getEmailTemplate = async (templateName) => {
   try {
     const [templates] = await db.execute(
-      'SELECT * FROM email_templates WHERE name = ? AND is_active = TRUE',
+      'SELECT * FROM email_templates WHERE name = ? AND is_active = 1',
       [templateName]
     );
 
@@ -58,7 +58,7 @@ const checkRateLimit = async () => {
     const oneHourAgo = moment().subtract(1, 'hour').format('YYYY-MM-DD HH:mm:ss');
     
     const [sentEmails] = await db.execute(
-      'SELECT COUNT(*) as count FROM email_queue WHERE status = "sent" AND sent_at > ?',
+      "SELECT COUNT(*) as count FROM email_queue WHERE status = 'sent' AND sent_at > ?",
       [oneHourAgo]
     );
 
@@ -74,12 +74,13 @@ const checkRateLimit = async () => {
 // Add email to queue
 const addToQueue = async (templateName, toEmail, subject, body, variables, priority = 0) => {
   try {
-    await db.execute(
+    const [result] = await db.execute(
       `INSERT INTO email_queue 
        (template_name, to_email, subject, body, variables, priority, scheduled_at) 
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
       [templateName, toEmail, subject, body, JSON.stringify(variables), priority]
     );
+    return result.insertId;
   } catch (error) {
     console.error('Error adding email to queue:', error);
     throw error;
@@ -119,10 +120,10 @@ const sendEmailImmediate = async (templateName, toEmail, variables = {}) => {
     const result = await transporter.sendMail(mailOptions);
 
     // Log successful send
-    await addToQueue(templateName, toEmail, processedSubject, processedBody, variables, 0);
+    const queueId = await addToQueue(templateName, toEmail, processedSubject, processedBody, variables, 0);
     await db.execute(
-      'UPDATE email_queue SET status = "sent", sent_at = NOW() WHERE to_email = ? AND subject = ? ORDER BY id DESC LIMIT 1',
-      [toEmail, processedSubject]
+      "UPDATE email_queue SET status = 'sent', sent_at = NOW() WHERE id = ?",
+      [queueId]
     );
 
     return { sent: true, messageId: result.messageId };
@@ -170,7 +171,7 @@ const processEmailQueue = async () => {
     // Get pending emails ordered by priority and scheduled time
     const [pendingEmails] = await db.execute(
       `SELECT * FROM email_queue 
-       WHERE status = "pending" AND attempts < max_attempts 
+       WHERE status = 'pending' AND attempts < max_attempts
        ORDER BY priority DESC, scheduled_at ASC 
        LIMIT 10`
     );
@@ -202,7 +203,7 @@ const processEmailQueue = async () => {
 
         // Mark as sent
         await db.execute(
-          'UPDATE email_queue SET status = "sent", sent_at = NOW() WHERE id = ?',
+          "UPDATE email_queue SET status = 'sent', sent_at = NOW() WHERE id = ?",
           [email.id]
         );
 
@@ -220,7 +221,7 @@ const processEmailQueue = async () => {
         // Mark as failed if max attempts reached
         if (email.attempts + 1 >= email.max_attempts) {
           await db.execute(
-            'UPDATE email_queue SET status = "failed" WHERE id = ?',
+            "UPDATE email_queue SET status = 'failed' WHERE id = ?",
             [email.id]
           );
         }
@@ -238,7 +239,7 @@ const cleanupEmailQueue = async () => {
     const thirtyDaysAgo = moment().subtract(30, 'days').format('YYYY-MM-DD HH:mm:ss');
     
     await db.execute(
-      'DELETE FROM email_queue WHERE created_at < ? AND status IN ("sent", "failed")',
+      "DELETE FROM email_queue WHERE created_at < ? AND status IN ('sent', 'failed')",
       [thirtyDaysAgo]
     );
 
@@ -263,7 +264,7 @@ const sendWelcomeEmail = async (userEmail, firstName) => {
 const sendPaymentReminder = async (userEmail, userData, serviceData) => {
   try {
     const [settings] = await db.execute(
-      'SELECT setting_value FROM system_settings WHERE setting_key IN ("bank_iban", "bank_holder")'
+      "SELECT setting_value FROM system_settings WHERE setting_key IN ('bank_iban', 'bank_holder')"
     );
 
     const bankIban = settings.find(s => s.setting_key === 'bank_iban')?.setting_value || '';
@@ -324,4 +325,4 @@ module.exports = {
   sendAssetInvitation,
   getEmailTemplate,
   processTemplate
-}; 
+};

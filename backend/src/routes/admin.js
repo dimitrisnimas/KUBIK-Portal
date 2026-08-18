@@ -82,15 +82,15 @@ router.get('/dashboard-data', requireAdmin, async (req, res) => {
   try {
     const [stats] = await db.execute(`
       SELECT
-        (SELECT COUNT(*) FROM users) as totalClients,
-        (SELECT COUNT(*) FROM users WHERE status = 'approved') as activeClients,
-        (SELECT COUNT(*) FROM assets) as totalAssets,
-        (SELECT IFNULL(SUM(total_amount), 0) FROM invoices WHERE status = 'paid') as totalRevenue,
-        (SELECT COUNT(*) FROM invoices WHERE status = 'pending') as pendingInvoices,
-        (SELECT COUNT(*) FROM invoices WHERE status = 'overdue') as overdueInvoices,
-        (SELECT COUNT(*) FROM tickets WHERE status IN ('open', 'in_progress')) as openTickets,
-        (SELECT COUNT(*) FROM tickets WHERE priority = 'urgent') as urgentTickets,
-        (SELECT COUNT(*) FROM packages) as totalPackages
+        (SELECT COUNT(*) FROM users) as "totalClients",
+        (SELECT COUNT(*) FROM users WHERE status = 'approved') as "activeClients",
+        (SELECT COUNT(*) FROM assets) as "totalAssets",
+        (SELECT COALESCE(SUM(total_amount), 0) FROM invoices WHERE status = 'paid') as "totalRevenue",
+        (SELECT COUNT(*) FROM invoices WHERE status = 'pending') as "pendingInvoices",
+        (SELECT COUNT(*) FROM invoices WHERE status = 'overdue') as "overdueInvoices",
+        (SELECT COUNT(*) FROM tickets WHERE status IN ('open', 'in_progress')) as "openTickets",
+        (SELECT COUNT(*) FROM tickets WHERE priority = 'urgent') as "urgentTickets",
+        (SELECT COUNT(*) FROM packages) as "totalPackages"
     `);
 
     const [recentClients] = await db.execute(`
@@ -309,12 +309,12 @@ router.post('/billing/generate-monthly', requireAdmin, async (req, res) => {
       // Use asset name from the initial query, which already includes it.
       const assetName = asset.name ? asset.name.replace(/\s+/g, '') : 'ASSET';
       // Generate increment number per asset
-      const [maxInvoice] = await db.execute('SELECT MAX(CAST(SUBSTRING_INDEX(invoice_number, \'-\', -1) AS UNSIGNED)) as max_num FROM invoices WHERE asset_id = ?', [asset.id]);
+      const [maxInvoice] = await db.execute("SELECT MAX(NULLIF(regexp_replace(invoice_number, '^.*-', ''), '')::integer) as max_num FROM invoices WHERE asset_id = ?", [asset.id]);
       const lastNumber = maxInvoice[0].max_num || 0;
       const invoiceNumber = `INV-${assetName}-${lastNumber + 1}`;
       await db.execute(`
         INSERT INTO invoices (user_id, asset_id, invoice_number, amount, vat_amount, total_amount, status, due_date, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'pending', DATE_ADD(NOW(), INTERVAL 30 DAY), NOW())
+        VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW() + INTERVAL '30 days', NOW())
       `, [asset.user_id, asset.id, invoiceNumber, asset.price, vatAmount, totalAmount]);
     }
     res.json({ message: 'Monthly invoices generated successfully', count: assets.length });
@@ -373,7 +373,7 @@ router.post('/billing/upload-invoice', requireAdmin, upload.single('pdf_file'), 
     const [assetRows] = await db.execute('SELECT name FROM assets WHERE id = ?', [asset_id]);
     const assetName = assetRows.length > 0 ? assetRows[0].name.replace(/\s+/g, '') : 'ASSET';
     // Generate increment number per asset
-    const [maxInvoice] = await db.execute('SELECT MAX(CAST(SUBSTRING_INDEX(invoice_number, \'-\', -1) AS UNSIGNED)) as max_num FROM invoices WHERE asset_id = ?', [asset_id]);
+    const [maxInvoice] = await db.execute("SELECT MAX(NULLIF(regexp_replace(invoice_number, '^.*-', ''), '')::integer) as max_num FROM invoices WHERE asset_id = ?", [asset_id]);
     const lastNumber = maxInvoice[0].max_num || 0;
     const invoiceNumber = `INV-${assetName}-${lastNumber + 1}`;
 
@@ -561,7 +561,7 @@ router.post('/packages', requireAdmin, async (req, res) => {
     }
 
     const safeFeatures = features ? JSON.stringify(features) : '[]';
-    const safeIsActive = is_active !== undefined ? is_active : true;
+    const safeIsActive = is_active === undefined || is_active ? 1 : 0;
 
     const [result] = await db.execute(`
       INSERT INTO packages(name, description, price, currency, billing_cycle, category_id, features, is_active, created_at)
@@ -609,7 +609,7 @@ router.put('/packages/:id', requireAdmin, async (req, res) => {
     }
 
     const safeFeatures = features ? JSON.stringify(features) : '[]';
-    const safeIsActive = is_active !== undefined ? is_active : true;
+    const safeIsActive = is_active === undefined || is_active ? 1 : 0;
 
 
 
@@ -803,7 +803,7 @@ router.post('/settings/test-email', requireAdmin, async (req, res) => {
   try {
     // Get admin email from session
     const [admins] = await db.execute(
-      'SELECT u.email FROM users u JOIN portal_admins pa ON u.id = pa.user_id WHERE pa.role = "super_admin" LIMIT 1'
+      "SELECT u.email FROM users u JOIN portal_admins pa ON u.id = pa.user_id WHERE pa.role = 'super_admin' LIMIT 1"
     );
 
     if (admins.length === 0) {

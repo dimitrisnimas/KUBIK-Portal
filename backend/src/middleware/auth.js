@@ -10,7 +10,7 @@ const requireAuth = async (req, res, next) => {
     }
 
     const [users] = await db.execute(
-      'SELECT * FROM users WHERE id = ? AND status IN ("approved", "suspended")',
+      "SELECT * FROM users WHERE id = ? AND status IN ('approved', 'suspended')",
       [req.session.userId]
     );
 
@@ -240,4 +240,4 @@ module.exports = {
   generateToken,
   verifyToken,
   logAdminActivity
-}; 
+};

@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const [packages] = await db.execute(
-      'SELECT * FROM service_packages WHERE is_active = TRUE ORDER BY name ASC'
+      'SELECT * FROM service_packages WHERE is_active = 1 ORDER BY name ASC'
     );
     res.json(packages);
   } catch (error) {
@@ -109,7 +109,7 @@ router.get('/statistics', requireAuth, async (req, res) => {
   try {
     // Get total active services
     const [totalServices] = await db.execute(
-      'SELECT COUNT(*) as count FROM assets WHERE user_id = ? AND status = "active"',
+      "SELECT COUNT(*) as count FROM assets WHERE user_id = ? AND status = 'active'",
       [req.user.id]
     );
 
@@ -159,4 +159,4 @@ router.get('/pricing', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

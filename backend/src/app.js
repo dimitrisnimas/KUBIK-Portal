@@ -4,8 +4,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const MySQLStore = require('express-mysql-session')(session);
-const dbConfig = require('./config/database');
+const PgSession = require('connect-pg-simple')(session);
+const db = require('./config/database');
 
 // Route imports
 const authRouter = require('./routes/auth');
@@ -20,7 +20,7 @@ const systemRouter = require('./routes/system');
 
 const app = express();
 
-// Trust proxy is required for secure cookies on Render/Cloudflare
+// Trust the Vercel proxy so secure cookies use the original HTTPS request.
 app.set('trust proxy', 1);
 
 // Security middleware
@@ -60,7 +60,12 @@ app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Session store
-const sessionStore = new MySQLStore(dbConfig.session);
+const sessionStore = new PgSession({
+  pool: db.pool,
+  tableName: 'sessions',
+  createTableIfMissing: true,
+  pruneSessionInterval: 15 * 60,
+});
 
 // Session configuration
 app.use(session({

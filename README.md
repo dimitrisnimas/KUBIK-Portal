@@ -10,7 +10,7 @@ This project is a **Monorepo** containing both the frontend and backend:
 
 *   **`frontend/`**: React application (Vite + Tailwind CSS).
 *   **`backend/`**: Node.js Express API.
-*   **`database/`**: SQL scripts for the MySQL database.
+*   **`database/`**: PostgreSQL schema and deterministic demo seed data.
 
 ## 🚀 Deployment
 
@@ -22,7 +22,7 @@ frontend and exposes the existing Express application through `api/index.js`.
 
 ### Prerequisites
 *   Node.js (v16+)
-*   MySQL
+*   PostgreSQL 16+ or a Neon database
 
 ### Setup
 1.  Install dependencies:
@@ -31,8 +31,8 @@ frontend and exposes the existing Express application through `api/index.js`.
     cd ../backend && npm install
     ```
 2.  Setup Database:
-    *   Create a MySQL database.
-    *   Run `database/database.sql`.
+    *   Create a PostgreSQL database.
+    *   Run `psql "$DATABASE_URL" -f database/database.sql`.
 3.  Configure Environment:
     *   Copy `.env.example` to `.env` in `backend/`.
     *   Update database credentials.
