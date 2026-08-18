@@ -2,7 +2,6 @@ const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const path = require('path');
 const PgSession = require('connect-pg-simple')(session);
 const db = require('./config/database');

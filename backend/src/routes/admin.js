@@ -3,6 +3,7 @@ const db = require('../config/database');
 const { requireAdmin, requireSuperAdmin, requireAuth } = require('../middleware/auth');
 const router = express.Router();
 const multer = require('multer');
+const bcrypt = require('bcryptjs');
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -155,7 +156,6 @@ router.post('/users', requireAdmin, async (req, res) => {
     }
 
     // Hash password (you should use bcrypt in production)
-    const bcrypt = require('bcrypt');
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const [result] = await db.execute(`
@@ -960,7 +960,6 @@ router.post('/super-admins', requireSuperAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Email already exists' });
     }
     // Hash password
-    const bcrypt = require('bcrypt');
     const hashedPassword = await bcrypt.hash(password, 10);
     // Create user
     const [result] = await db.execute(
