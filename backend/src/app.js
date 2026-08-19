@@ -72,6 +72,7 @@ app.use(express.urlencoded({ extended: true }));
 // Session store
 const sessionStore = new PgSession({
   pool: db.pool,
+  schemaName: 'public',
   tableName: 'sessions',
   // The table is owned by database/database.sql. Runtime creation races when
   // multiple serverless instances cold-start at the same time.

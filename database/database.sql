@@ -23,12 +23,12 @@ CREATE TABLE IF NOT EXISTS portal_admins (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS sessions (
+CREATE TABLE IF NOT EXISTS public.sessions (
   sid VARCHAR NOT NULL PRIMARY KEY,
   sess JSON NOT NULL,
   expire TIMESTAMP(6) NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_sessions_expire ON sessions(expire);
+CREATE INDEX IF NOT EXISTS idx_sessions_expire ON public.sessions(expire);
 
 CREATE TABLE IF NOT EXISTS auth_otp_challenges (
   id BIGSERIAL PRIMARY KEY,
