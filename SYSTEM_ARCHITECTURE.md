@@ -36,6 +36,7 @@ A fully custom client portal for managing eShop development, social media manage
 - ✅ **Session Isolation** - Every verified visitor works in an expiring copy of the demo dataset
 - ✅ **Rate Limiting** - Atomic per-email and per-IP OTP throttling
 - ✅ **Safe Invoice Demo** - Invoice emails can only target the OTP-verified session address and are capped per session
+- ✅ **Generated Invoice PDFs** - Seeded invoices are rendered on demand with embedded Unicode fonts for download and email attachment
 - ✅ **Helmet Security** - Comprehensive security headers
 - ✅ **GDPR Compliance** - Cookie consent, data protection
 

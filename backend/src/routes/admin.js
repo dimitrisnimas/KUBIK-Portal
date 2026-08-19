@@ -5,6 +5,7 @@ const router = express.Router();
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { getUploadDirectory } = require('../config/uploads');
+const { prepareInvoicePdf } = require('../utils/invoice-pdf');
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -406,7 +407,9 @@ router.post('/billing/upload-invoice', requireAdmin, upload.single('pdf_file'), 
 router.get('/billing/download/:id', requireAdmin, async (req, res) => {
   try {
     const [invoice] = await db.execute(`
-      SELECT i.*, u.first_name, u.last_name, u.email, a.name as asset_name
+      SELECT i.*, u.first_name, u.last_name, u.email AS customer_email,
+             CONCAT(u.first_name, ' ', u.last_name) AS customer_name,
+             a.name as asset_name
       FROM invoices i
       LEFT JOIN users u ON i.user_id = u.id
       LEFT JOIN assets a ON i.asset_id = a.id
@@ -417,12 +420,12 @@ router.get('/billing/download/:id', requireAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
-    const pdfPath = invoice[0].file_path;
-    if (pdfPath && fs.existsSync(pdfPath)) {
-      return res.download(pdfPath, path.basename(pdfPath));
-    } else {
-      return res.status(404).json({ error: 'PDF file not found for this invoice' });
+    const pdf = await prepareInvoicePdf(invoice[0]);
+    if (pdf.path) {
+      return res.download(pdf.path, pdf.filename);
     }
+    res.attachment(pdf.filename);
+    return res.type('application/pdf').send(pdf.content);
   } catch (error) {
     console.error('Download invoice error:', error);
     res.status(500).json({ error: 'Failed to download invoice' });

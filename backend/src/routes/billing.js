@@ -1,10 +1,9 @@
 const express = require('express');
 const db = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
-const fs = require('fs');
-const path = require('path');
 const { body } = require('express-validator');
 const { createDemoInvoiceMessage, sendDemoInvoiceEmail } = require('../utils/email');
+const { prepareInvoicePdf } = require('../utils/invoice-pdf');
 
 const router = express.Router();
 
@@ -118,7 +117,11 @@ router.post('/invoices/:id/send-demo', requireAuth, async (req, res) => {
     }
 
     try {
-      const delivery = await sendDemoInvoiceEmail(verifiedEmail, invoice);
+      const delivery = await sendDemoInvoiceEmail(verifiedEmail, {
+        ...invoice,
+        customer_email: verifiedEmail,
+        customer_name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
+      });
       await db.execute(
         "UPDATE email_queue SET status = 'sent', sent_at = NOW() WHERE id = ?",
         [reservation],
@@ -249,13 +252,16 @@ router.get('/download/:id', requireAuth, async (req, res) => {
     }
 
     const invoice = invoices[0];
-    const pdfPath = invoice.file_path;
-
-    if (pdfPath && fs.existsSync(pdfPath)) {
-      return res.download(pdfPath, invoice.filename || path.basename(pdfPath));
+    const pdf = await prepareInvoicePdf({
+      ...invoice,
+      customer_email: req.user.email,
+      customer_name: `${req.user.first_name || ''} ${req.user.last_name || ''}`.trim(),
+    });
+    if (pdf.path) {
+      return res.download(pdf.path, pdf.filename);
     }
-
-    return res.status(404).json({ error: 'PDF file not found for this invoice.' });
+    res.attachment(pdf.filename);
+    return res.type('application/pdf').send(pdf.content);
   } catch (error) {
     console.error('Download invoice error:', error);
     res.status(500).json({ error: 'Failed to download invoice' });

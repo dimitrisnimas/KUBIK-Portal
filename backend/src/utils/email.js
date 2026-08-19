@@ -1,7 +1,6 @@
 const nodemailer = require('nodemailer');
-const fs = require('fs');
-const path = require('path');
 const db = require('../config/database');
+const { prepareInvoicePdf } = require('./invoice-pdf');
 const moment = require('moment');
 
 // Email transporter configuration
@@ -127,14 +126,12 @@ const createDemoInvoiceMessage = (invoice) => {
 
 const sendDemoInvoiceEmail = async (toEmail, invoice) => {
   const message = createDemoInvoiceMessage(invoice);
-  const attachments = [];
-  if (invoice.file_path && fs.existsSync(invoice.file_path)) {
-    attachments.push({
-      filename: invoice.filename || path.basename(invoice.file_path),
-      path: invoice.file_path,
-      contentType: 'application/pdf',
-    });
-  }
+  const pdf = await prepareInvoicePdf({ ...invoice, customer_email: toEmail });
+  const attachments = [{
+    filename: pdf.filename,
+    ...(pdf.path ? { path: pdf.path } : { content: pdf.content }),
+    contentType: 'application/pdf',
+  }];
 
   const transporter = createTransporter();
   const result = await transporter.sendMail({
@@ -145,7 +142,7 @@ const sendDemoInvoiceEmail = async (toEmail, invoice) => {
     html: message.html,
     attachments,
   });
-  return { ...message, messageId: result.messageId, attachedPdf: attachments.length > 0 };
+  return { ...message, messageId: result.messageId, attachedPdf: true };
 };
 
 // Process email template with variables
