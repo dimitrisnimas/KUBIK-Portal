@@ -4,6 +4,7 @@ const { requireAdmin, requireSuperAdmin, requireAuth } = require('../middleware/
 const router = express.Router();
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
+const { getUploadDirectory } = require('../config/uploads');
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -56,11 +57,7 @@ async function getVatRate() {
 const path = require('path');
 const fs = require('fs');
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../../uploads/invoices');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+const uploadsDir = getUploadDirectory('invoices');
 
 
 

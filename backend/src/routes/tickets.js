@@ -5,12 +5,10 @@ const { requireAuth } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { getUploadDirectory } = require('../config/uploads');
 
 // Configure multer for file uploads
-const uploadsDir = path.join(__dirname, '../../uploads/tickets');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+const uploadsDir = getUploadDirectory('tickets');
 const upload = multer({ dest: uploadsDir });
 
 const router = express.Router();
@@ -239,4 +237,4 @@ router.get('/pricing', async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

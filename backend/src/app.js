@@ -2,9 +2,9 @@ const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
 const helmet = require('helmet');
-const path = require('path');
 const PgSession = require('connect-pg-simple')(session);
 const db = require('./config/database');
+const { uploadsRoot } = require('./config/uploads');
 
 // Route imports
 const authRouter = require('./routes/auth');
@@ -91,8 +91,8 @@ app.use(session({
   },
 }));
 
-// File uploads directory
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serverless-safe, ephemeral demo uploads. Persistent files use external storage later.
+app.use('/uploads', express.static(uploadsRoot));
 
 // Request logging middleware
 app.use((req, res, next) => {
