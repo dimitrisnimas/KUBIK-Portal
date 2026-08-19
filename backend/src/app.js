@@ -73,7 +73,9 @@ app.use(express.urlencoded({ extended: true }));
 const sessionStore = new PgSession({
   pool: db.pool,
   tableName: 'sessions',
-  createTableIfMissing: true,
+  // The table is owned by database/database.sql. Runtime creation races when
+  // multiple serverless instances cold-start at the same time.
+  createTableIfMissing: false,
   pruneSessionInterval: 15 * 60,
   ttl: SESSION_TTL_SECONDS,
 });
