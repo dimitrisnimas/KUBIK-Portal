@@ -4,8 +4,14 @@ const { requireAuth } = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
 const { body } = require('express-validator');
+const { createDemoInvoiceMessage, sendDemoInvoiceEmail } = require('../utils/email');
 
 const router = express.Router();
+
+const DEMO_INVOICE_EMAIL_LIMIT = Math.max(
+  1,
+  Number.parseInt(process.env.DEMO_INVOICE_EMAIL_LIMIT || '5', 10) || 5,
+);
 
 // Get all invoices for current user
 router.get('/invoices', requireAuth, async (req, res) => {
@@ -43,6 +49,96 @@ router.get('/invoices/:id', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Get invoice error:', error);
     res.status(500).json({ error: 'Failed to get invoice' });
+  }
+});
+
+router.post('/invoices/:id/send-demo', requireAuth, async (req, res) => {
+  const verifiedEmail = req.session.verifiedEmail;
+  if (!verifiedEmail || verifiedEmail.toLowerCase() !== req.user.email.toLowerCase()) {
+    return res.status(403).json({ error: 'A verified session email is required' });
+  }
+
+  try {
+    const [admins] = await db.execute(
+      'SELECT id FROM portal_admins WHERE user_id = ?',
+      [req.user.id],
+    );
+    const isAdmin = admins.length > 0;
+    const params = [req.params.id];
+    let ownershipFilter = '';
+    if (!isAdmin) {
+      ownershipFilter = 'AND i.user_id = ?';
+      params.push(req.user.id);
+    }
+
+    const [invoices] = await db.execute(`
+      SELECT i.*, a.name AS asset_name, a.category AS asset_category
+      FROM invoices i
+      LEFT JOIN assets a ON a.id = i.asset_id
+      WHERE i.id = ? ${ownershipFilter}
+      LIMIT 1
+    `, params);
+    if (invoices.length === 0) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const invoice = invoices[0];
+    const message = createDemoInvoiceMessage(invoice);
+    const reservation = await db.transaction(async (connection) => {
+      await connection.execute(
+        'SELECT pg_advisory_xact_lock(hashtext(?))',
+        [`demo-invoice:${verifiedEmail}`],
+      );
+      const [counts] = await connection.execute(`
+        SELECT COUNT(*)::int AS count
+        FROM email_queue
+        WHERE template_name = 'demo_invoice'
+          AND to_email = ?
+          AND status IN ('processing', 'sent')
+      `, [verifiedEmail]);
+      if (counts[0].count >= DEMO_INVOICE_EMAIL_LIMIT) return null;
+
+      const [result] = await connection.execute(`
+        INSERT INTO email_queue
+          (template_name, to_email, subject, body, variables, status, attempts)
+        VALUES ('demo_invoice', ?, ?, ?, ?, 'processing', 1)
+      `, [
+        verifiedEmail,
+        message.subject,
+        message.html,
+        JSON.stringify({ invoiceId: invoice.id, invoiceNumber: invoice.invoice_number }),
+      ]);
+      return result.insertId;
+    });
+
+    if (!reservation) {
+      return res.status(429).json({
+        error: `Demo invoice email limit reached (${DEMO_INVOICE_EMAIL_LIMIT} per session)`,
+      });
+    }
+
+    try {
+      const delivery = await sendDemoInvoiceEmail(verifiedEmail, invoice);
+      await db.execute(
+        "UPDATE email_queue SET status = 'sent', sent_at = NOW() WHERE id = ?",
+        [reservation],
+      );
+      return res.json({
+        message: 'Demo invoice sent',
+        recipient: verifiedEmail,
+        attachedPdf: delivery.attachedPdf,
+      });
+    } catch (error) {
+      await db.execute(
+        "UPDATE email_queue SET status = 'failed', error_message = ? WHERE id = ?",
+        [error.message.slice(0, 1000), reservation],
+      );
+      console.error('Demo invoice delivery failed:', error.message);
+      return res.status(503).json({ error: 'Unable to send the demo invoice right now' });
+    }
+  } catch (error) {
+    console.error('Demo invoice request failed:', error.message);
+    return res.status(500).json({ error: 'Unable to process the demo invoice' });
   }
 });
 
@@ -166,4 +262,4 @@ router.get('/download/:id', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

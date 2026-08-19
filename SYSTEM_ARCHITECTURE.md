@@ -35,6 +35,7 @@ A fully custom client portal for managing eShop development, social media manage
 - ✅ **Session Management** - Browser-session cookies backed by PostgreSQL with a three-hour server TTL
 - ✅ **Session Isolation** - Every verified visitor works in an expiring copy of the demo dataset
 - ✅ **Rate Limiting** - Atomic per-email and per-IP OTP throttling
+- ✅ **Safe Invoice Demo** - Invoice emails can only target the OTP-verified session address and are capped per session
 - ✅ **Helmet Security** - Comprehensive security headers
 - ✅ **GDPR Compliance** - Cookie consent, data protection
 
@@ -200,8 +201,8 @@ User Management → Package Configuration → Pricing Updates → Email Template
 
 ### **Billing**
 - `GET /api/billing/invoices` - List invoices
-- `GET /api/billing/invoices/:id/download` - Download invoice
-- `POST /api/billing/invoices` - Upload invoice (admin)
+- `GET /api/billing/download/:id` - Download an authorized invoice PDF
+- `POST /api/billing/invoices/:id/send-demo` - Send an authorized demo invoice to the verified session email
 
 ### **Admin**
 - `GET /api/admin/users` - Admin user management

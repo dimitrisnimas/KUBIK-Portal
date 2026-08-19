@@ -1,4 +1,6 @@
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
 const db = require('../config/database');
 const moment = require('moment');
 
@@ -47,6 +49,103 @@ const sendLoginOtp = async (toEmail, code, expiresInMinutes) => {
       </div>
     `,
   });
+};
+
+const escapeHtml = (value) => String(value ?? '')
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
+
+const formatMoney = (value) => new Intl.NumberFormat('el-GR', {
+  style: 'currency',
+  currency: 'EUR',
+}).format(Number(value) || 0);
+
+const formatDate = (value) => new Intl.DateTimeFormat('el-GR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+}).format(new Date(value));
+
+const sanitizeEmailHeader = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ').trim();
+
+const createDemoInvoiceMessage = (invoice) => {
+  const invoiceNumber = escapeHtml(invoice.invoice_number);
+  const assetName = escapeHtml(invoice.asset_name || 'Demo service');
+  const description = escapeHtml(invoice.description || 'Demo υπηρεσίες KUBIK Portal');
+  const status = escapeHtml(invoice.status);
+  const amount = formatMoney(invoice.amount);
+  const vatAmount = formatMoney(invoice.vat_amount);
+  const totalAmount = formatMoney(invoice.total_amount);
+  const dueDate = formatDate(invoice.due_date);
+  const subject = `[DEMO] Τιμολόγιο ${sanitizeEmailHeader(invoice.invoice_number)}`;
+  const text = [
+    'KUBIK Portal Demo',
+    `Τιμολόγιο: ${invoice.invoice_number}`,
+    `Υπηρεσία: ${invoice.asset_name || 'Demo service'}`,
+    `Περιγραφή: ${invoice.description || 'Demo υπηρεσίες KUBIK Portal'}`,
+    `Καθαρή αξία: ${amount}`,
+    `ΦΠΑ: ${vatAmount}`,
+    `Σύνολο: ${totalAmount}`,
+    `Ημερομηνία λήξης: ${dueDate}`,
+    `Κατάσταση: ${invoice.status}`,
+    '',
+    'Αυτό είναι αυτοματοποιημένο μήνυμα επίδειξης και δεν αποτελεί φορολογικό παραστατικό.',
+  ].join('\n');
+  const html = `
+    <div style="margin:0;background:#f8fafc;padding:32px 12px;font-family:Arial,sans-serif;color:#0f172a">
+      <div style="max-width:620px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden">
+        <div style="background:#0f172a;padding:24px 28px;color:#ffffff">
+          <div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#94a3b8">KUBIK Portal Demo</div>
+          <h1 style="font-size:24px;margin:8px 0 0">Τιμολόγιο ${invoiceNumber}</h1>
+        </div>
+        <div style="padding:28px">
+          <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;font-size:13px;color:#9a3412;margin-bottom:24px">
+            Μήνυμα επίδειξης — δεν αποτελεί φορολογικό παραστατικό ή απαίτηση πληρωμής.
+          </div>
+          <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px">
+            <tr><td style="padding:8px 0;color:#64748b">Υπηρεσία</td><td style="padding:8px 0;text-align:right;font-weight:600">${assetName}</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b">Περιγραφή</td><td style="padding:8px 0;text-align:right">${description}</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b">Ημερομηνία λήξης</td><td style="padding:8px 0;text-align:right">${dueDate}</td></tr>
+            <tr><td style="padding:8px 0;color:#64748b">Κατάσταση</td><td style="padding:8px 0;text-align:right">${status}</td></tr>
+          </table>
+          <div style="height:1px;background:#e2e8f0;margin:20px 0"></div>
+          <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px">
+            <tr><td style="padding:6px 0;color:#64748b">Καθαρή αξία</td><td style="padding:6px 0;text-align:right">${amount}</td></tr>
+            <tr><td style="padding:6px 0;color:#64748b">ΦΠΑ</td><td style="padding:6px 0;text-align:right">${vatAmount}</td></tr>
+            <tr><td style="padding:10px 0 0;font-size:16px;font-weight:700">Σύνολο</td><td style="padding:10px 0 0;text-align:right;font-size:20px;font-weight:700">${totalAmount}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return { subject, text, html };
+};
+
+const sendDemoInvoiceEmail = async (toEmail, invoice) => {
+  const message = createDemoInvoiceMessage(invoice);
+  const attachments = [];
+  if (invoice.file_path && fs.existsSync(invoice.file_path)) {
+    attachments.push({
+      filename: invoice.filename || path.basename(invoice.file_path),
+      path: invoice.file_path,
+      contentType: 'application/pdf',
+    });
+  }
+
+  const transporter = createTransporter();
+  const result = await transporter.sendMail({
+    from: getSender(),
+    to: toEmail,
+    subject: message.subject,
+    text: message.text,
+    html: message.html,
+    attachments,
+  });
+  return { ...message, messageId: result.messageId, attachedPdf: attachments.length > 0 };
 };
 
 // Process email template with variables
@@ -346,6 +445,8 @@ const sendEmail = sendEmailImmediate;
 
 module.exports = {
   sendLoginOtp,
+  createDemoInvoiceMessage,
+  sendDemoInvoiceEmail,
   sendEmail,
   sendEmailImmediate,
   sendEmailQueued,

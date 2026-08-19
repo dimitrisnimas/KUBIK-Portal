@@ -13,7 +13,8 @@ import {
   Building,
   User,
   FileText,
-  DollarSign
+  DollarSign,
+  Send
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -23,6 +24,7 @@ export default function Billing() {
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [vatRate, setVatRate] = useState(24)
+  const [sendingInvoiceId, setSendingInvoiceId] = useState(null)
 
   useEffect(() => {
     fetchInvoices()
@@ -69,6 +71,18 @@ export default function Billing() {
       toast.success('Το τιμολόγιο κατέβηκε επιτυχώς')
     } catch (error) {
       toast.error('Αποτυχία λήψης τιμολογίου')
+    }
+  }
+
+  const sendInvoice = async (invoiceId) => {
+    setSendingInvoiceId(invoiceId)
+    try {
+      const response = await api.post(`/billing/invoices/${invoiceId}/send-demo`)
+      toast.success(`Το demo τιμολόγιο στάλθηκε στο ${response.data.recipient}`)
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Αποτυχία αποστολής τιμολογίου')
+    } finally {
+      setSendingInvoiceId(null)
     }
   }
 
@@ -261,6 +275,15 @@ export default function Billing() {
                         <Download className="h-4 w-4 mr-1" />
                         Λήψη
                       </button>
+                      <button
+                        onClick={() => sendInvoice(invoice.id)}
+                        disabled={sendingInvoiceId === invoice.id}
+                        className="btn btn-outline btn-sm"
+                        title="Αποστολή μόνο στο επιβεβαιωμένο email της συνεδρίας"
+                      >
+                        <Send className="h-4 w-4 mr-1" />
+                        {sendingInvoiceId === invoice.id ? 'Αποστολή…' : 'Demo email'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -369,6 +392,15 @@ export default function Billing() {
                         <Download className="h-4 w-4 mr-2" />
                         Λήψη PDF
                       </button>
+                      <button
+                        onClick={() => sendInvoice(selectedInvoice.id)}
+                        disabled={sendingInvoiceId === selectedInvoice.id}
+                        className="btn btn-outline btn-sm w-full"
+                        title="Αποστολή μόνο στο επιβεβαιωμένο email της συνεδρίας"
+                      >
+                        <Send className="h-4 w-4 mr-2" />
+                        {sendingInvoiceId === selectedInvoice.id ? 'Αποστολή…' : 'Αποστολή demo email'}
+                      </button>
                       {selectedInvoice.status === 'pending' && (
                         <button className="btn btn-primary btn-sm w-full">
                           <CreditCard className="h-4 w-4 mr-2" />
@@ -385,4 +417,4 @@ export default function Billing() {
       )}
     </div>
   )
-} 
+}

@@ -42,6 +42,7 @@ export default function AdminBilling() {
   const [clientFilter, setClientFilter] = useState('all')
   const [selectedFile, setSelectedFile] = useState(null)
   const [vatRate, setVatRate] = useState(24)
+  const [sendingInvoiceId, setSendingInvoiceId] = useState(null)
 
   const {
     register,
@@ -172,11 +173,14 @@ export default function AdminBilling() {
   }
 
   const handleSendInvoice = async (invoice) => {
+    setSendingInvoiceId(invoice.id)
     try {
-      await api.post(`/admin/billing/send-invoice/${invoice.id}`)
-      toast.success('Το τιμολόγιο στάλθηκε επιτυχώς')
+      const response = await api.post(`/billing/invoices/${invoice.id}/send-demo`)
+      toast.success(`Το demo τιμολόγιο στάλθηκε στο ${response.data.recipient}`)
     } catch (error) {
-      toast.error('Αποτυχία αποστολής τιμολογίου')
+      toast.error(error.response?.data?.error || 'Αποτυχία αποστολής τιμολογίου')
+    } finally {
+      setSendingInvoiceId(null)
     }
   }
 
@@ -434,10 +438,12 @@ export default function AdminBilling() {
                           
                           <button
                             onClick={() => handleSendInvoice(invoice)}
+                            disabled={sendingInvoiceId === invoice.id}
                             className="btn btn-outline btn-sm"
+                            title="Αποστολή μόνο στο επιβεβαιωμένο email της συνεδρίας"
                           >
                             <Send className="h-4 w-4 mr-1" />
-                            Αποστολή
+                            {sendingInvoiceId === invoice.id ? 'Αποστολή…' : 'Demo email'}
                           </button>
                           
                           {invoice.status !== 'paid' && (
@@ -806,10 +812,12 @@ export default function AdminBilling() {
                 </button>
                 <button
                   onClick={() => handleSendInvoice(selectedInvoice)}
+                  disabled={sendingInvoiceId === selectedInvoice.id}
                   className="btn btn-outline btn-md"
+                  title="Αποστολή μόνο στο επιβεβαιωμένο email της συνεδρίας"
                 >
                   <Send className="h-4 w-4 mr-2" />
-                  Αποστολή Email
+                  {sendingInvoiceId === selectedInvoice.id ? 'Αποστολή…' : 'Αποστολή demo email'}
                 </button>
                 {selectedInvoice.status !== 'paid' && (
                   <button
@@ -830,4 +838,4 @@ export default function AdminBilling() {
       )}
     </div>
   )
-} 
+}

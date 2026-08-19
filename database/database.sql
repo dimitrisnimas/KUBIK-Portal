@@ -295,6 +295,55 @@ ON CONFLICT (id) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('packages', 'id'), GREATEST((SELECT MAX(id) FROM packages), 1));
 
+INSERT INTO assets
+  (user_id, name, category, package_id, business_name, vat_number,
+   billing_email, address, billing_phone, website, status)
+SELECT
+  u.id,
+  'Demo eShop',
+  'Eshop',
+  2,
+  'Demo Commerce Μ.ΙΚΕ',
+  '099999999',
+  'demo-client@kubik.local',
+  'Λεωφόρος Κηφισίας 1, Αθήνα',
+  '+30 210 0000000',
+  'https://example.com',
+  'active'
+FROM users u
+WHERE u.email = 'demo-client@kubik.local'
+  AND NOT EXISTS (
+    SELECT 1 FROM assets a WHERE a.user_id = u.id AND a.name = 'Demo eShop'
+  );
+
+SELECT setval(pg_get_serial_sequence('assets', 'id'), GREATEST((SELECT MAX(id) FROM assets), 1));
+
+INSERT INTO invoices
+  (user_id, asset_id, invoice_number, amount, vat_amount, total_amount,
+   description, status, due_date, paid_at, payment_method)
+SELECT
+  u.id,
+  a.id,
+  seed.invoice_number,
+  seed.amount,
+  seed.vat_amount,
+  seed.total_amount,
+  seed.description,
+  seed.status,
+  seed.due_date,
+  seed.paid_at,
+  seed.payment_method
+FROM users u
+JOIN assets a ON a.user_id = u.id AND a.name = 'Demo eShop'
+CROSS JOIN (VALUES
+  ('DEMO-INV-001', 100.00, 24.00, 124.00, 'Μηνιαία τεχνική υποστήριξη', 'pending', CURRENT_DATE + 14, NULL::timestamptz, NULL::varchar),
+  ('DEMO-INV-002', 199.00, 47.76, 246.76, 'Premium πακέτο υπηρεσιών', 'paid', CURRENT_DATE - 15, NOW() - INTERVAL '18 days', 'bank_transfer'::varchar)
+) AS seed(invoice_number, amount, vat_amount, total_amount, description, status, due_date, paid_at, payment_method)
+WHERE u.email = 'demo-client@kubik.local'
+ON CONFLICT (invoice_number) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('invoices', 'id'), GREATEST((SELECT MAX(id) FROM invoices), 1));
+
 INSERT INTO pricing_config
   (id, change_request_with_package, change_request_without_package,
    support_ticket_with_package, support_ticket_without_package,
