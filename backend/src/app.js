@@ -19,6 +19,27 @@ const systemRouter = require('./routes/system');
 
 const app = express();
 
+const productionRequiredEnv = [
+  'DATABASE_URL',
+  'FRONTEND_URL',
+  'SESSION_SECRET',
+  'OTP_HASH_SECRET',
+  'SMTP_HOST',
+  'SMTP_USER',
+  'SMTP_PASS',
+  'SMTP_FROM_EMAIL',
+];
+
+if (process.env.NODE_ENV === 'production') {
+  const missing = productionRequiredEnv.filter((name) => !process.env[name]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required production environment variables: ${missing.join(', ')}`);
+  }
+  if (process.env.SESSION_SECRET.length < 32 || process.env.OTP_HASH_SECRET.length < 32) {
+    throw new Error('SESSION_SECRET and OTP_HASH_SECRET must contain at least 32 characters');
+  }
+}
+
 // Trust the Vercel proxy so secure cookies use the original HTTPS request.
 app.set('trust proxy', 1);
 
@@ -34,17 +55,6 @@ app.use(helmet({
     },
   },
 }));
-
-// Rate limiting - Disabled for development
-// const limiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, // 15 minutes
-//   max: 100, // limit each IP to 100 requests per windowMs
-//   message: 'Too many requests from this IP, please try again later.',
-//   standardHeaders: true,
-//   legacyHeaders: false,
-// });
-
-// app.use('/api/', limiter);
 
 // CORS configuration
 app.use(cors({
@@ -64,19 +74,19 @@ const sessionStore = new PgSession({
   tableName: 'sessions',
   createTableIfMissing: true,
   pruneSessionInterval: 15 * 60,
+  ttl: 3 * 60 * 60,
 });
 
 // Session configuration
 app.use(session({
   key: 'kubik_portal_sid',
-  secret: process.env.SESSION_SECRET || 'your-super-secret-key-change-in-production',
+  secret: process.env.SESSION_SECRET || 'development-session-secret-not-for-production',
   store: sessionStore,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 1000 * 60 * 60 * 24 * 3, // 72 hours
     httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
   },
 }));

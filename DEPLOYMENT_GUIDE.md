@@ -22,10 +22,21 @@ FRONTEND_URL=https://YOUR_PROJECT.vercel.app
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require
 DATABASE_POOL_MAX=5
 SESSION_SECRET=replace-with-at-least-32-random-characters
+OTP_HASH_SECRET=replace-with-a-different-32-character-secret
+OTP_TTL_MINUTES=10
+OTP_RESEND_SECONDS=60
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=YOUR_BREVO_SMTP_LOGIN
+SMTP_PASS=YOUR_BREVO_SMTP_KEY
+SMTP_FROM_EMAIL=YOUR_VERIFIED_SENDER
+SMTP_FROM_NAME=KUBIK Portal Demo
 ```
 
 Use the Neon pooled URL for serverless connection reuse. The pool is bounded to
 five connections per warm Vercel function instance.
 
-Email and OTP variables are intentionally documented in their own later
-feature commits.
+For a database created before passwordless authentication was added, run
+`database/migrations/2026081901_passwordless_otp.up.sql` once in the Neon SQL
+editor. The application never stores an OTP in plaintext.

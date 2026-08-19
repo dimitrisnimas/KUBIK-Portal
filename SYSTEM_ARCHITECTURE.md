@@ -7,7 +7,7 @@ A fully custom client portal for managing eShop development, social media manage
 ## 🗄️ **Database Schema**
 
 ### **Core Tables**
-- **users** - Client accounts with approval workflow
+- **users** - Internal demo personas selected after verified OTP access
 - **portal_admins** - Admin roles and permissions
 - **assets** - Business entities with full details
 - **asset_collaborators** - Multi-user asset access
@@ -28,16 +28,16 @@ A fully custom client portal for managing eShop development, social media manage
 ## 🔐 **Security Features**
 
 ### **Authentication & Authorization**
-- ✅ **Admin Approval Workflow** - New users require admin approval
+- ✅ **Passwordless Demo Access** - Verified email OTP with selectable client or admin view
 - ✅ **Role-Based Access Control** - Super Admin, Admin, Asset Owner, Asset Admin
-- ✅ **Secure Password Requirements** - 8+ chars, uppercase, lowercase, numbers, special chars
-- ✅ **Session Management** - 72-hour timeout with secure cookies
-- ✅ **Rate Limiting** - API protection against abuse
+- ✅ **One-Time Codes** - Short-lived, single-use codes stored only as HMAC hashes
+- ✅ **Session Management** - Browser-session cookies backed by PostgreSQL with a three-hour server TTL
+- ✅ **Rate Limiting** - Atomic per-email and per-IP OTP throttling
 - ✅ **Helmet Security** - Comprehensive security headers
 - ✅ **GDPR Compliance** - Cookie consent, data protection
 
 ### **Data Protection**
-- ✅ **Password Hashing** - bcrypt with 12 salt rounds
+- ✅ **OTP Protection** - No plaintext code storage and timing-safe hash comparison
 - ✅ **SQL Injection Protection** - Parameterized queries
 - ✅ **XSS Protection** - Input validation and sanitization
 - ✅ **CSRF Protection** - Session-based security
@@ -53,13 +53,12 @@ A fully custom client portal for managing eShop development, social media manage
 - ✅ **Preview Functionality** - Test emails before saving
 
 ### **Email Templates**
-- User registration confirmation
+- Passwordless login code
 - Admin approval notification
 - Welcome email after approval
 - Payment reminders
 - Ticket status updates
 - Asset invitations
-- Password reset
 
 ## 💰 **Billing & Pricing**
 
@@ -77,9 +76,9 @@ A fully custom client portal for managing eShop development, social media manage
 
 ## 🎯 **Core Workflows**
 
-### **1. User Registration & Approval**
+### **1. Passwordless Demo Access**
 ```
-User Registration → Email to Admin → Admin Approval → Welcome Email → Dashboard Access
+Email & Demo Role → One-Time Code → Email Verification → Isolated Session → Dashboard Access
 ```
 
 ### **2. Asset & Service Management**
@@ -163,12 +162,11 @@ User Management → Package Configuration → Pricing Updates → Email Template
 ## 🔄 **API Endpoints**
 
 ### **Authentication**
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
+- `POST /api/auth/otp/request` - Request a passwordless login code
+- `POST /api/auth/otp/verify` - Verify the code and create the demo session
 - `POST /api/auth/logout` - User logout
 - `GET /api/auth/me` - Get current user
-- `POST /api/auth/reset-password` - Password reset request
-- `POST /api/auth/reset-password/confirm` - Password reset confirmation
+- `GET /api/auth/session` - Get current session state
 
 ### **Users**
 - `GET /api/users` - List users (admin)

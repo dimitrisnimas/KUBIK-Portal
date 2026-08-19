@@ -1,5 +1,3 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
 // Authentication middleware
@@ -26,14 +24,12 @@ const requireAuth = async (req, res, next) => {
       return res.status(403).json({ error: 'Account suspended' });
     }
 
-    // Check session timeout (72 hours)
-    const sessionTimeout = 72 * 60 * 60 * 1000; // 72 hours in milliseconds
-    if (req.session.cookie.expires && new Date() > req.session.cookie.expires) {
-      req.session.destroy();
-      return res.status(401).json({ error: 'Session expired' });
-    }
-
-    req.user = user;
+    req.user = {
+      ...user,
+      email: req.session.verifiedEmail || user.email,
+      first_name: req.session.profile?.firstName || user.first_name,
+      last_name: req.session.profile?.lastName || user.last_name,
+    };
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
@@ -149,62 +145,6 @@ const requireAssetOwner = async (req, res, next) => {
   }
 };
 
-// Password validation middleware
-const validatePassword = (password) => {
-  const minLength = 8;
-  const hasUpperCase = /[A-Z]/.test(password);
-  const hasLowerCase = /[a-z]/.test(password);
-  const hasNumbers = /\d/.test(password);
-  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-
-  if (password.length < minLength) {
-    return { valid: false, message: 'Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες' };
-  }
-  if (!hasUpperCase) {
-    return { valid: false, message: 'Ο κωδικός πρέπει να περιέχει τουλάχιστον ένα κεφαλαίο γράμμα' };
-  }
-  if (!hasLowerCase) {
-    return { valid: false, message: 'Ο κωδικός πρέπει να περιέχει τουλάχιστον ένα μικρό γράμμα' };
-  }
-  if (!hasNumbers) {
-    return { valid: false, message: 'Ο κωδικός πρέπει να περιέχει τουλάχιστον έναν αριθμό' };
-  }
-  if (!hasSpecialChar) {
-    return { valid: false, message: 'Ο κωδικός πρέπει να περιέχει τουλάχιστον έναν ειδικό χαρακτήρα' };
-  }
-
-  return { valid: true };
-};
-
-// Hash password utility
-const hashPassword = async (password) => {
-  const saltRounds = 12;
-  return await bcrypt.hash(password, saltRounds);
-};
-
-// Compare password utility
-const comparePassword = async (password, hash) => {
-  return await bcrypt.compare(password, hash);
-};
-
-// Generate JWT token
-const generateToken = (userId, expiresIn = '72h') => {
-  return jwt.sign(
-    { userId },
-    process.env.JWT_SECRET || 'your-jwt-secret-key',
-    { expiresIn }
-  );
-};
-
-// Verify JWT token
-const verifyToken = (token) => {
-  try {
-    return jwt.verify(token, process.env.JWT_SECRET || 'your-jwt-secret-key');
-  } catch (error) {
-    return null;
-  }
-};
-
 // Log admin activity
 const logAdminActivity = async (adminId, action, tableName, recordId, oldValues = null, newValues = null, req) => {
   try {
@@ -234,10 +174,5 @@ module.exports = {
   requireSuperAdmin,
   requireAssetAccess,
   requireAssetOwner,
-  validatePassword,
-  hashPassword,
-  comparePassword,
-  generateToken,
-  verifyToken,
   logAdminActivity
 };

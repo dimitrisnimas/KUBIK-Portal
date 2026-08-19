@@ -4,17 +4,48 @@ const moment = require('moment');
 
 // Email transporter configuration
 const createTransporter = () => {
+  const required = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM_EMAIL'];
+  const missing = required.filter((name) => !process.env[name]);
+  if (missing.length > 0) {
+    throw new Error(`Missing SMTP configuration: ${missing.join(', ')}`);
+  }
+
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'localhost',
-    port: process.env.SMTP_PORT || 587,
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
     secure: process.env.SMTP_SECURE === 'true',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
     },
     tls: {
-      rejectUnauthorized: false
+      minVersion: 'TLSv1.2',
+      rejectUnauthorized: true
     }
+  });
+};
+
+const getSender = () => ({
+  name: process.env.SMTP_FROM_NAME || 'KUBIK Portal Demo',
+  address: process.env.SMTP_FROM_EMAIL,
+});
+
+const sendLoginOtp = async (toEmail, code, expiresInMinutes) => {
+  const transporter = createTransporter();
+  return transporter.sendMail({
+    from: getSender(),
+    to: toEmail,
+    subject: 'Ο κωδικός σύνδεσής σας στο KUBIK Portal',
+    text: `Ο κωδικός σύνδεσής σας είναι ${code}. Λήγει σε ${expiresInMinutes} λεπτά. Αν δεν ζητήσατε εσείς τον κωδικό, αγνοήστε αυτό το email.`,
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+        <h2 style="margin:0 0 16px">KUBIK Portal Demo</h2>
+        <p>Χρησιμοποιήστε τον παρακάτω κωδικό για να συνδεθείτε:</p>
+        <p style="font-size:30px;font-weight:700;letter-spacing:8px;margin:24px 0">${code}</p>
+        <p>Ο κωδικός λήγει σε ${expiresInMinutes} λεπτά και μπορεί να χρησιμοποιηθεί μόνο μία φορά.</p>
+        <p style="color:#64748b;font-size:13px">Αν δεν ζητήσατε εσείς τον κωδικό, αγνοήστε αυτό το email.</p>
+      </div>
+    `,
   });
 };
 
@@ -110,7 +141,7 @@ const sendEmailImmediate = async (templateName, toEmail, variables = {}) => {
 
     // Send email
     const mailOptions = {
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      from: getSender(),
       to: toEmail,
       subject: processedSubject,
       text: processedBody,
@@ -192,7 +223,7 @@ const processEmailQueue = async () => {
         }
 
         const mailOptions = {
-          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          from: getSender(),
           to: email.to_email,
           subject: email.subject,
           text: email.body,
@@ -314,6 +345,7 @@ const sendAssetInvitation = async (userEmail, userData, assetData, role) => {
 const sendEmail = sendEmailImmediate;
 
 module.exports = {
+  sendLoginOtp,
   sendEmail,
   sendEmailImmediate,
   sendEmailQueued,

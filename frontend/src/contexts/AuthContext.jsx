@@ -12,10 +12,9 @@ export function useAuth() {
       return {
         user: null,
         loading: true,
-        login: async () => {},
-        register: async () => {},
+        requestOtp: async () => {},
+        verifyOtp: async () => {},
         logout: async () => {},
-        resetPassword: async () => {},
         checkAuth: async () => {}
       }
     }
@@ -45,16 +44,14 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const login = async (email, password) => {
-    const response = await api.post('/auth/login', { email, password })
-    setUser(response.data.user)
+  const requestOtp = async (email, role) => {
+    const response = await api.post('/auth/otp/request', { email, role })
     return response.data
   }
 
-  const register = async (userData) => {
-    const response = await api.post('/auth/register', userData)
-    // Don't set user immediately for pending registrations
-    // The user will be set after admin approval and login
+  const verifyOtp = async (email, role, code) => {
+    const response = await api.post('/auth/otp/verify', { email, role, code })
+    setUser(response.data.user)
     return response.data
   }
 
@@ -68,18 +65,12 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const resetPassword = async (email) => {
-    const response = await api.post('/auth/reset', { email })
-    return response.data
-  }
-
   const value = {
     user,
     loading,
-    login,
-    register,
+    requestOtp,
+    verifyOtp,
     logout,
-    resetPassword,
     checkAuth
   }
 
@@ -88,4 +79,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   )
-} 
+}

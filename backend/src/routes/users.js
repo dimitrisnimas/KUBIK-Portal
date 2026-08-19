@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { requireAuth, hashPassword, comparePassword } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -35,8 +35,7 @@ router.get('/profile', requireAuth, async (req, res) => {
 // Update user profile
 router.put('/profile', requireAuth, [
   body('first_name').trim().isLength({ min: 2, max: 100 }).withMessage('First name must be 2-100 characters'),
-  body('last_name').trim().isLength({ min: 2, max: 100 }).withMessage('Last name must be 2-100 characters'),
-  body('email').isEmail().normalizeEmail().withMessage('Valid email required')
+  body('last_name').trim().isLength({ min: 2, max: 100 }).withMessage('Last name must be 2-100 characters')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -44,62 +43,18 @@ router.put('/profile', requireAuth, [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { first_name, last_name, email } = req.body;
-
-    // Check if email is already taken by another user
-    const [existingUsers] = await db.execute(
-      'SELECT id FROM users WHERE email = ? AND id != ?',
-      [email, req.user.id]
-    );
-
-    if (existingUsers.length > 0) {
-      return res.status(400).json({ error: 'Email already taken' });
-    }
-
-    await db.execute(
-      'UPDATE users SET first_name = ?, last_name = ?, email = ? WHERE id = ?',
-      [first_name, last_name, email, req.user.id]
-    );
-
-    res.json({ message: 'Profile updated successfully' });
+    const { first_name, last_name } = req.body;
+    req.session.profile = { firstName: first_name, lastName: last_name };
+    req.session.save((error) => {
+      if (error) {
+        console.error('Profile session save error:', error);
+        return res.status(500).json({ error: 'Failed to update profile' });
+      }
+      return res.json({ message: 'Profile updated for this demo session' });
+    });
   } catch (error) {
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
-  }
-});
-
-// Change password
-router.put('/password', requireAuth, [
-  body('current_password').notEmpty().withMessage('Current password required'),
-  body('new_password').isLength({ min: 8 }).withMessage('New password must be at least 8 characters')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { current_password, new_password } = req.body;
-
-    // Verify current password
-    const isValidPassword = await comparePassword(current_password, req.user.password_hash);
-    if (!isValidPassword) {
-      return res.status(400).json({ error: 'Current password is incorrect' });
-    }
-
-    // Hash new password
-    const newPasswordHash = await hashPassword(new_password);
-
-    // Update password
-    await db.execute(
-      'UPDATE users SET password_hash = ? WHERE id = ?',
-      [newPasswordHash, req.user.id]
-    );
-
-    res.json({ message: 'Password changed successfully' });
-  } catch (error) {
-    console.error('Change password error:', error);
-    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 
@@ -157,4 +112,4 @@ router.get('/invoices', requireAuth, async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

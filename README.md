@@ -9,7 +9,7 @@ ecosystem and does not process real billing data.
 This project is a **Monorepo** containing both the frontend and backend:
 
 *   **`frontend/`**: React application (Vite + Tailwind CSS).
-*   **`backend/`**: Node.js Express API.
+*   **`backend/`**: Node.js Express API with email OTP authentication.
 *   **`database/`**: PostgreSQL schema and deterministic demo seed data.
 
 ## 🚀 Deployment

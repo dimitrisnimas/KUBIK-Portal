@@ -1,188 +1,320 @@
+const crypto = require('crypto');
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const {
-  requireAuth,
-  validatePassword,
-  hashPassword,
-  comparePassword,
-  logAdminActivity
-} = require('../middleware/auth');
-const { sendEmail } = require('../utils/email');
+const { requireAuth } = require('../middleware/auth');
+const { sendLoginOtp } = require('../utils/email');
 
 const router = express.Router();
 
-// Register new user
-router.post('/register', [
-  body('first_name').trim().isLength({ min: 2, max: 100 }).withMessage('Το όνομα πρέπει να έχει 2-100 χαρακτήρες'),
-  body('last_name').trim().isLength({ min: 2, max: 100 }).withMessage('Το επώνυμο πρέπει να έχει 2-100 χαρακτήρες'),
-  body('email').isEmail().normalizeEmail().withMessage('Απαιτείται έγκυρο email'),
-  body('password').custom((value) => {
-    const validation = validatePassword(value);
-    if (!validation.valid) {
-      throw new Error(validation.message);
-    }
-    return true;
-  })
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+function positiveInteger(value, fallback, minimum) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
 
-    const { first_name, last_name, email, password } = req.body;
+const OTP_TTL_MINUTES = positiveInteger(process.env.OTP_TTL_MINUTES, 10, 2);
+const OTP_RESEND_SECONDS = positiveInteger(process.env.OTP_RESEND_SECONDS, 60, 30);
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_EMAIL_LIMIT_PER_15_MINUTES = 5;
+const OTP_IP_LIMIT_PER_15_MINUTES = 20;
 
-    // Check if email already exists
-    const [existingUsers] = await db.execute(
-      'SELECT id FROM users WHERE email = ?',
-      [email]
-    );
+const otpRequestValidators = [
+  body('email')
+    .trim()
+    .isEmail()
+    .withMessage('Απαιτείται έγκυρη διεύθυνση email')
+    .bail()
+    .customSanitizer((value) => value.toLowerCase()),
+  body('role')
+    .isIn(['admin', 'user'])
+    .withMessage('Ο demo ρόλος πρέπει να είναι admin ή user'),
+];
 
-    if (existingUsers.length > 0) {
-      return res.status(400).json({ error: 'Αυτό το email είναι ήδη εγγεγραμμένο' });
-    }
+const otpVerifyValidators = [
+  ...otpRequestValidators,
+  body('code')
+    .trim()
+    .matches(/^\d{6}$/)
+    .withMessage('Ο κωδικός πρέπει να αποτελείται από 6 ψηφία'),
+];
 
-    // Hash password
-    const passwordHash = await hashPassword(password);
-
-    // Create user
-    const [result] = await db.execute(
-      'INSERT INTO users (first_name, last_name, email, password_hash) VALUES (?, ?, ?, ?)',
-      [first_name, last_name, email, passwordHash]
-    );
-
-    const userId = result.insertId;
-
-    // Send registration confirmation email to user
-    await sendEmail('user_registration', email, {
-      first_name: first_name
-    });
-
-    // Send notification email to admin
-    const [admins] = await db.execute(
-      "SELECT u.email FROM users u JOIN portal_admins pa ON u.id = pa.user_id WHERE pa.role = 'super_admin'"
-    );
-
-    if (admins.length > 0) {
-      await sendEmail('new_user_notification', admins[0].email, {
-        first_name: first_name,
-        last_name: last_name,
-        email: email
-      });
-    }
-
-    res.status(201).json({
-      message: 'Η εγγραφή ήταν επιτυχής. Παρακαλώ περιμένετε την έγκριση από τον διαχειριστή.',
-      userId
-    });
-
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Η εγγραφή απέτυχε. Παρακαλώ δοκιμάστε ξανά.' });
+function otpHash(email, role, code) {
+  if (!process.env.OTP_HASH_SECRET || process.env.OTP_HASH_SECRET.length < 32) {
+    throw new Error('OTP_HASH_SECRET must contain at least 32 characters');
   }
-});
 
-// Login
-router.post('/login', [
-  body('email').isEmail().normalizeEmail().withMessage('Απαιτείται έγκυρο email'),
-  body('password').notEmpty().withMessage('Απαιτείται κωδικός πρόσβασης')
-], async (req, res) => {
+  return crypto
+    .createHmac('sha256', process.env.OTP_HASH_SECRET)
+    .update(`${email}:${role}:${code}`)
+    .digest('hex');
+}
+
+function hashesMatch(expected, actual) {
+  const expectedBuffer = Buffer.from(expected, 'hex');
+  const actualBuffer = Buffer.from(actual, 'hex');
+  return expectedBuffer.length === actualBuffer.length
+    && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+}
+
+function validationError(req, res) {
+  const errors = validationResult(req);
+  if (errors.isEmpty()) return false;
+
+  res.status(400).json({
+    error: 'Invalid authentication request',
+    details: errors.array().map(({ msg, path }) => ({ field: path, message: msg })),
+  });
+  return true;
+}
+
+function saveSession(req) {
+  return new Promise((resolve, reject) => {
+    req.session.save((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+function regenerateSession(req) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+async function findDemoPersona(connection, role) {
+  if (role === 'admin') {
+    const [users] = await connection.execute(`
+      SELECT u.*, pa.role AS admin_role
+      FROM users u
+      JOIN portal_admins pa ON pa.user_id = u.id
+      WHERE u.status = 'approved' AND pa.role = 'super_admin'
+      ORDER BY u.id
+      LIMIT 1
+    `);
+    return users[0];
+  }
+
+  const [users] = await connection.execute(`
+    SELECT u.*, NULL::text AS admin_role
+    FROM users u
+    LEFT JOIN portal_admins pa ON pa.user_id = u.id
+    WHERE u.status = 'approved' AND pa.id IS NULL
+    ORDER BY u.id
+    LIMIT 1
+  `);
+  if (users[0]) return users[0];
+
+  await connection.execute(`
+    INSERT INTO users
+      (first_name, last_name, email, password_hash, status)
+    VALUES ('Demo', 'Client', 'demo-client@kubik.local', '!passwordless-demo-persona', 'approved')
+    ON CONFLICT (email) DO UPDATE SET status = 'approved'
+  `);
+
+  const [createdUsers] = await connection.execute(`
+    SELECT u.*, NULL::text AS admin_role
+    FROM users u
+    WHERE u.email = 'demo-client@kubik.local'
+    LIMIT 1
+  `);
+  return createdUsers[0];
+}
+
+router.post('/otp/request', otpRequestValidators, async (req, res) => {
+  if (validationError(req, res)) return;
+
+  const { email, role } = req.body;
+  const requestIp = req.ip || 'unknown';
+
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { email, password } = req.body;
-
-    // Find user
-    const [users] = await db.execute(
-      'SELECT * FROM users WHERE email = ?',
-      [email]
-    );
-
-    if (users.length === 0) {
-      return res.status(401).json({ error: 'Λάθος email ή κωδικός πρόσβασης' });
-    }
-
-    const user = users[0];
-
-    // Check if user is approved
-    if (user.status !== 'approved') {
-      if (user.status === 'pending') {
-        return res.status(401).json({ error: 'Ο λογαριασμός σας εκκρεμεί έγκρισης από τον διαχειριστή. Θα λάβετε email ειδοποίησης μόλις εγκριθεί.' });
-      } else if (user.status === 'rejected') {
-        return res.status(401).json({ error: 'Ο λογαριασμός σας έχει απορριφθεί. Επικοινωνήστε με τον διαχειριστή για περισσότερες πληροφορίες.' });
-      } else if (user.status === 'suspended') {
-        return res.status(401).json({ error: 'Ο λογαριασμός σας έχει ανασταλεί. Επικοινωνήστε με τον διαχειριστή.' });
-      }
-    }
-
-    // Verify password
-    const isValidPassword = await comparePassword(password, user.password_hash);
-    if (!isValidPassword) {
-      return res.status(401).json({ error: 'Λάθος email ή κωδικός πρόσβασης' });
-    }
-
-    // Update last login
     await db.execute(
-      'UPDATE users SET last_login = NOW() WHERE id = ?',
-      [user.id]
+      "DELETE FROM auth_otp_challenges WHERE created_at < NOW() - INTERVAL '24 hours'"
     );
 
-    // Set session
-    req.session.userId = user.id;
-    req.session.userRole = user.status;
+    const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+    const codeHash = otpHash(email, role, code);
+    const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
-    // Get admin role if applicable
-    const [admins] = await db.execute(
-      'SELECT role FROM portal_admins WHERE user_id = ?',
-      [user.id]
-    );
-    const adminRole = admins.length > 0 ? admins[0].role : null;
+    const challenge = await db.transaction(async (connection) => {
+      await connection.execute(
+        'SELECT pg_advisory_xact_lock(hashtext(?)), pg_advisory_xact_lock(hashtext(?))',
+        [`email:${email}`, `ip:${requestIp}`]
+      );
 
-    // Explicitly save session before sending response
-    req.session.save((err) => {
-      if (err) {
-        console.error('Session save error:', err);
-        return res.status(500).json({ error: 'Login failed' });
+      const [rateRows] = await connection.execute(`
+        SELECT
+          COUNT(*) FILTER (WHERE email = ?) AS email_count,
+          COUNT(*) FILTER (WHERE request_ip = ?) AS ip_count,
+          MAX(created_at) FILTER (WHERE email = ?) AS latest_email_request
+        FROM auth_otp_challenges
+        WHERE created_at > NOW() - INTERVAL '15 minutes'
+      `, [email, requestIp, email]);
+
+      const rate = rateRows[0];
+      const latestRequest = rate.latest_email_request
+        ? new Date(rate.latest_email_request).getTime()
+        : 0;
+      const elapsedSeconds = Math.floor((Date.now() - latestRequest) / 1000);
+
+      if (latestRequest && elapsedSeconds < OTP_RESEND_SECONDS) {
+        return {
+          error: 'Please wait before requesting another code',
+          retryAfterSeconds: OTP_RESEND_SECONDS - elapsedSeconds,
+        };
       }
 
-      console.log('Session saved for user:', user.id);
+      if (Number(rate.email_count) >= OTP_EMAIL_LIMIT_PER_15_MINUTES
+        || Number(rate.ip_count) >= OTP_IP_LIMIT_PER_15_MINUTES) {
+        return {
+          error: 'Too many authentication requests. Please try again later.',
+          retryAfterSeconds: 900,
+        };
+      }
 
-      res.json({
-        message: 'Login successful',
-        user: {
-          id: user.id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          email: user.email,
-          status: user.status,
-          wallet_balance: user.wallet_balance,
-          admin_role: adminRole
-        }
-      });
+      await connection.execute(`
+        UPDATE auth_otp_challenges
+        SET consumed_at = NOW()
+        WHERE email = ? AND requested_role = ? AND consumed_at IS NULL
+      `, [email, role]);
+
+      const [result] = await connection.execute(`
+        INSERT INTO auth_otp_challenges
+          (email, requested_role, code_hash, expires_at, request_ip)
+        VALUES (?, ?, ?, ?, ?)
+      `, [email, role, codeHash, expiresAt, requestIp]);
+
+      return { id: result.insertId };
     });
 
+    if (challenge.error) {
+      res.set('Retry-After', String(challenge.retryAfterSeconds));
+      return res.status(429).json(challenge);
+    }
+
+    try {
+      await sendLoginOtp(email, code, OTP_TTL_MINUTES);
+    } catch (error) {
+      await db.execute(
+        'UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE id = ?',
+        [challenge.id]
+      );
+      console.error('OTP email delivery failed:', error.message);
+      return res.status(503).json({ error: 'Unable to deliver the login code right now' });
+    }
+
+    return res.status(202).json({
+      message: 'Login code sent',
+      expiresInSeconds: OTP_TTL_MINUTES * 60,
+      resendAfterSeconds: OTP_RESEND_SECONDS,
+    });
   } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Login failed' });
+    console.error('OTP request failed:', error.message);
+    return res.status(500).json({ error: 'Unable to create the login code' });
   }
 });
 
-// Logout
+router.post('/otp/verify', otpVerifyValidators, async (req, res) => {
+  if (validationError(req, res)) return;
+
+  const { email, role, code } = req.body;
+
+  try {
+    const verification = await db.transaction(async (connection) => {
+      const [challenges] = await connection.execute(`
+        SELECT *
+        FROM auth_otp_challenges
+        WHERE email = ? AND requested_role = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+        FOR UPDATE
+      `, [email, role]);
+
+      const challenge = challenges[0];
+      if (!challenge || challenge.consumed_at || new Date(challenge.expires_at) <= new Date()) {
+        return { error: 'Invalid or expired login code', status: 401 };
+      }
+
+      if (challenge.attempts >= OTP_MAX_ATTEMPTS) {
+        return { error: 'Too many verification attempts', status: 429 };
+      }
+
+      const suppliedHash = otpHash(email, role, code);
+      if (!hashesMatch(challenge.code_hash, suppliedHash)) {
+        const attempts = challenge.attempts + 1;
+        await connection.execute(`
+          UPDATE auth_otp_challenges
+          SET attempts = ?, consumed_at = CASE WHEN ?::integer >= ?::integer THEN NOW() ELSE consumed_at END
+          WHERE id = ?
+        `, [attempts, attempts, OTP_MAX_ATTEMPTS, challenge.id]);
+
+        return {
+          error: attempts >= OTP_MAX_ATTEMPTS
+            ? 'Too many verification attempts'
+            : 'Invalid or expired login code',
+          status: attempts >= OTP_MAX_ATTEMPTS ? 429 : 401,
+        };
+      }
+
+      const persona = await findDemoPersona(connection, role);
+      if (!persona) {
+        return { error: 'Demo persona is not configured', status: 503 };
+      }
+
+      await connection.execute(
+        'UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE id = ?',
+        [challenge.id]
+      );
+      await connection.execute(
+        'UPDATE users SET last_login = NOW() WHERE id = ?',
+        [persona.id]
+      );
+
+      return { persona };
+    });
+
+    if (verification.error) {
+      return res.status(verification.status).json({ error: verification.error });
+    }
+
+    await regenerateSession(req);
+    req.session.userId = verification.persona.id;
+    req.session.demoRole = role;
+    req.session.verifiedEmail = email;
+    await saveSession(req);
+
+    return res.json({
+      message: 'Login successful',
+      user: {
+        id: verification.persona.id,
+        first_name: verification.persona.first_name,
+        last_name: verification.persona.last_name,
+        email,
+        status: verification.persona.status,
+        wallet_balance: verification.persona.wallet_balance,
+        admin_role: verification.persona.admin_role || null,
+        demo_role: role,
+      },
+    });
+  } catch (error) {
+    console.error('OTP verification failed:', error.message);
+    return res.status(500).json({ error: 'Unable to verify the login code' });
+  }
+});
+
 router.post('/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Logout error:', err);
+  req.session.destroy((error) => {
+    if (error) {
+      console.error('Logout failed:', error.message);
       return res.status(500).json({ error: 'Logout failed' });
     }
-    res.json({ message: 'Logout successful' });
+
+    res.clearCookie('kubik_portal_sid', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    });
+    return res.json({ message: 'Logout successful' });
   });
 });
 
-// Get current user
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const [admins] = await db.execute(
@@ -190,220 +322,29 @@ router.get('/me', requireAuth, async (req, res) => {
       [req.user.id]
     );
 
-    const adminRole = admins.length > 0 ? admins[0].role : null;
-
-    res.json({
+    return res.json({
       user: {
         id: req.user.id,
         first_name: req.user.first_name,
         last_name: req.user.last_name,
-        email: req.user.email,
+        email: req.session.verifiedEmail || req.user.email,
         status: req.user.status,
         wallet_balance: req.user.wallet_balance,
-        admin_role: adminRole
-      }
+        admin_role: admins[0]?.role || null,
+        demo_role: req.session.demoRole || (admins.length > 0 ? 'admin' : 'user'),
+      },
     });
   } catch (error) {
-    console.error('Get user error:', error);
-    res.status(500).json({ error: 'Failed to get user data' });
+    console.error('Unable to fetch current user:', error.message);
+    return res.status(500).json({ error: 'Unable to fetch current user' });
   }
 });
 
-// Request password reset
-router.post('/reset-password', [
-  body('email').isEmail().normalizeEmail().withMessage('Valid email required')
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { email } = req.body;
-
-    // Check if user exists
-    const [users] = await db.execute(
-      'SELECT * FROM users WHERE email = ?',
-      [email]
-    );
-
-    if (users.length === 0) {
-      // Don't reveal if email exists or not
-      return res.json({ message: 'If the email exists, a reset link has been sent' });
-    }
-
-    const user = users[0];
-
-    // Generate reset token
-    const resetToken = require('crypto').randomBytes(32).toString('hex');
-    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-    // Store reset token (you might want to create a separate table for this)
-    await db.execute(
-      'UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?',
-      [resetToken, resetExpires, user.id]
-    );
-
-    // Send reset email
-    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-
-    await sendEmail('password_reset', email, {
-      first_name: user.first_name,
-      reset_url: resetUrl
-    });
-
-    res.json({ message: 'If the email exists, a reset link has been sent' });
-
-  } catch (error) {
-    console.error('Password reset error:', error);
-    res.status(500).json({ error: 'Password reset failed' });
-  }
-});
-
-// Reset password with token
-router.post('/reset-password/confirm', [
-  body('token').notEmpty().withMessage('Reset token required'),
-  body('password').custom((value) => {
-    const validation = validatePassword(value);
-    if (!validation.valid) {
-      throw new Error(validation.message);
-    }
-    return true;
-  })
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { token, password } = req.body;
-
-    // Find user with valid reset token
-    const [users] = await db.execute(
-      'SELECT * FROM users WHERE reset_token = ? AND reset_expires > NOW()',
-      [token]
-    );
-
-    if (users.length === 0) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' });
-    }
-
-    const user = users[0];
-
-    // Hash new password
-    const passwordHash = await hashPassword(password);
-
-    // Update password and clear reset token
-    await db.execute(
-      'UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?',
-      [passwordHash, user.id]
-    );
-
-    res.json({ message: 'Password reset successful' });
-
-  } catch (error) {
-    console.error('Password reset confirm error:', error);
-    res.status(500).json({ error: 'Password reset failed' });
-  }
-});
-
-// Change password (authenticated user)
-router.put('/change-password', requireAuth, [
-  body('current_password').notEmpty().withMessage('Current password required'),
-  body('new_password').custom((value) => {
-    const validation = validatePassword(value);
-    if (!validation.valid) {
-      throw new Error(validation.message);
-    }
-    return true;
-  })
-], async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { current_password, new_password } = req.body;
-
-    // Verify current password
-    const isValidPassword = await comparePassword(current_password, req.user.password_hash);
-    if (!isValidPassword) {
-      return res.status(400).json({ error: 'Current password is incorrect' });
-    }
-
-    // Hash new password
-    const passwordHash = await hashPassword(new_password);
-
-    // Update password
-    await db.execute(
-      'UPDATE users SET password_hash = ? WHERE id = ?',
-      [passwordHash, req.user.id]
-    );
-
-    res.json({ message: 'Password changed successfully' });
-
-  } catch (error) {
-    console.error('Change password error:', error);
-    res.status(500).json({ error: 'Password change failed' });
-  }
-});
-
-// Check session status
 router.get('/session', (req, res) => {
-  if (req.session.userId) {
-    res.json({
-      authenticated: true,
-      userId: req.session.userId
-    });
-  } else {
-    res.json({ authenticated: false });
-  }
+  return res.json({
+    authenticated: Boolean(req.session.userId),
+    role: req.session.demoRole || null,
+  });
 });
 
-// Get current user information
-router.get('/me', requireAuth, async (req, res) => {
-  try {
-    const [users] = await db.execute(`
-      SELECT 
-        u.id, 
-        u.first_name, 
-        u.last_name, 
-        u.email, 
-        u.status,
-        u.wallet_balance,
-        u.created_at,
-        u.last_login,
-        pa.role as admin_role
-      FROM users u
-      LEFT JOIN portal_admins pa ON u.id = pa.user_id
-      WHERE u.id = ?
-    `, [req.user.id]);
-
-    if (users.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const user = users[0];
-
-    res.json({
-      user: {
-        id: user.id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        status: user.status,
-        wallet_balance: user.wallet_balance,
-        admin_role: user.admin_role || null,
-        created_at: user.created_at,
-        last_login: user.last_login
-      }
-    });
-  } catch (error) {
-    console.error('Error fetching user info:', error);
-    res.status(500).json({ error: 'Failed to fetch user information' });
-  }
-});
-
-module.exports = router; 
+module.exports = router;
