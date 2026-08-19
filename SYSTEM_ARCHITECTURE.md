@@ -37,6 +37,7 @@ A fully custom client portal for managing eShop development, social media manage
 - ✅ **Rate Limiting** - Atomic per-email and per-IP OTP throttling
 - ✅ **Safe Invoice Demo** - Invoice emails can only target the OTP-verified session address and are capped per session
 - ✅ **Generated Invoice PDFs** - Seeded invoices are rendered on demand with embedded Unicode fonts for download and email attachment
+- ✅ **Payment Declaration Demo** - Clients can record a bank-transfer reference for administrator verification without processing real money
 - ✅ **Helmet Security** - Comprehensive security headers
 - ✅ **GDPR Compliance** - Cookie consent, data protection
 
@@ -204,6 +205,7 @@ User Management → Package Configuration → Pricing Updates → Email Template
 - `GET /api/billing/invoices` - List invoices
 - `GET /api/billing/download/:id` - Download an authorized invoice PDF
 - `POST /api/billing/invoices/:id/send-demo` - Send an authorized demo invoice to the verified session email
+- `POST /api/billing/invoices/:id/mark-paid` - Record a demo bank-transfer declaration for administrator verification
 
 ### **Admin**
 - `GET /api/admin/users` - Admin user management

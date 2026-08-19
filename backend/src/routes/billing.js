@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
-const { body } = require('express-validator');
+const { body, validationResult } = require('express-validator');
 const { createDemoInvoiceMessage, sendDemoInvoiceEmail } = require('../utils/email');
 const { prepareInvoicePdf } = require('../utils/invoice-pdf');
 
@@ -207,21 +207,38 @@ router.get('/payment-instructions', requireAuth, async (req, res) => {
 
 // Mark invoice as paid (for user confirmation)
 router.post('/invoices/:id/mark-paid', requireAuth, [
-  body('payment_method').trim().isLength({ min: 1 }).withMessage('Payment method required'),
-  body('payment_reference').optional().trim(),
-  body('payment_notes').optional().trim()
+  body('payment_method')
+    .equals('bank_transfer')
+    .withMessage('Only the demo bank transfer method is supported'),
+  body('payment_reference')
+    .trim()
+    .isLength({ min: 3, max: 100 })
+    .withMessage('Payment reference must contain 3 to 100 characters'),
+  body('payment_notes')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isLength({ max: 500 })
+    .withMessage('Payment notes cannot exceed 500 characters')
 ], async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Invalid payment declaration', details: errors.array() });
+    }
+
     const { payment_method, payment_reference, payment_notes } = req.body;
 
     // Verify invoice belongs to user
     const [invoices] = await db.execute(
-      'SELECT id FROM invoices WHERE id = ? AND user_id = ?',
+      'SELECT id, status FROM invoices WHERE id = ? AND user_id = ?',
       [req.params.id, req.user.id]
     );
 
     if (invoices.length === 0) {
       return res.status(404).json({ error: 'Invoice not found' });
+    }
+    if (invoices[0].status !== 'pending') {
+      return res.status(409).json({ error: 'Only pending invoices can receive a payment declaration' });
     }
 
     // Update invoice with payment info (but keep status as pending for admin verification)
@@ -231,7 +248,15 @@ router.post('/invoices/:id/mark-paid', requireAuth, [
       WHERE id = ? AND user_id = ?
     `, [payment_method, payment_reference, payment_notes, req.params.id, req.user.id]);
 
-    res.json({ message: 'Payment information recorded. Admin will verify and update status.' });
+    res.json({
+      message: 'Payment declaration recorded. An administrator must verify it.',
+      payment: {
+        method: payment_method,
+        reference: payment_reference,
+        notes: payment_notes || null,
+        status: 'awaiting_verification',
+      },
+    });
   } catch (error) {
     console.error('Mark invoice paid error:', error);
     res.status(500).json({ error: 'Failed to record payment information' });

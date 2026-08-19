@@ -25,6 +25,10 @@ export default function Billing() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [vatRate, setVatRate] = useState(24)
   const [sendingInvoiceId, setSendingInvoiceId] = useState(null)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentReference, setPaymentReference] = useState('')
+  const [paymentNotes, setPaymentNotes] = useState('')
+  const [submittingPayment, setSubmittingPayment] = useState(false)
 
   useEffect(() => {
     fetchInvoices()
@@ -83,6 +87,38 @@ export default function Billing() {
       toast.error(error.response?.data?.error || 'Αποτυχία αποστολής τιμολογίου')
     } finally {
       setSendingInvoiceId(null)
+    }
+  }
+
+  const openPaymentDeclaration = (invoice) => {
+    setSelectedInvoice(invoice)
+    setPaymentReference(invoice.payment_reference || '')
+    setPaymentNotes(invoice.payment_notes || '')
+    setShowInvoiceModal(false)
+    setShowPaymentModal(true)
+  }
+
+  const submitPaymentDeclaration = async (event) => {
+    event.preventDefault()
+    if (!selectedInvoice || paymentReference.trim().length < 3) {
+      toast.error('Συμπληρώστε έγκυρη αναφορά πληρωμής')
+      return
+    }
+
+    setSubmittingPayment(true)
+    try {
+      await api.post(`/billing/invoices/${selectedInvoice.id}/mark-paid`, {
+        payment_method: 'bank_transfer',
+        payment_reference: paymentReference.trim(),
+        payment_notes: paymentNotes.trim() || undefined,
+      })
+      toast.success('Η δήλωση πληρωμής καταχωρήθηκε για έλεγχο')
+      setShowPaymentModal(false)
+      await fetchInvoices()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Αποτυχία καταχώρησης δήλωσης')
+    } finally {
+      setSubmittingPayment(false)
     }
   }
 
@@ -240,6 +276,11 @@ export default function Billing() {
                       <p className="text-xs text-slate-400 mt-1">
                         Περιουσιακό: {invoice.asset_name} ({invoice.asset_category})
                       </p>
+                      {invoice.status === 'pending' && invoice.payment_reference && (
+                        <p className="text-xs font-medium text-blue-700 mt-1">
+                          Η πληρωμή δηλώθηκε και αναμένει επιβεβαίωση
+                        </p>
+                      )}
                     </div>
                   </div>
                   
@@ -402,9 +443,12 @@ export default function Billing() {
                         {sendingInvoiceId === selectedInvoice.id ? 'Αποστολή…' : 'Αποστολή demo email'}
                       </button>
                       {selectedInvoice.status === 'pending' && (
-                        <button className="btn btn-primary btn-sm w-full">
+                        <button
+                          onClick={() => openPaymentDeclaration(selectedInvoice)}
+                          className="btn btn-primary btn-sm w-full"
+                        >
                           <CreditCard className="h-4 w-4 mr-2" />
-                          Πληρωμή
+                          {selectedInvoice.payment_reference ? 'Ενημέρωση δήλωσης πληρωμής' : 'Δήλωση τραπεζικής πληρωμής'}
                         </button>
                       )}
                     </div>
@@ -412,6 +456,79 @@ export default function Billing() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showPaymentModal && selectedInvoice && (
+        <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
+          <div className="modal-content max-w-lg" onClick={(event) => event.stopPropagation()}>
+            <form onSubmit={submitPaymentDeclaration} className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Δήλωση πληρωμής</h2>
+                  <p className="mt-1 text-sm text-slate-500">Τιμολόγιο #{selectedInvoice.invoice_number}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="action-btn"
+                  aria-label="Κλείσιμο"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                Πρόκειται για λειτουργία επίδειξης. Δεν πραγματοποιείται πραγματική πληρωμή και η δήλωση αποθηκεύεται μόνο στην προσωρινή συνεδρία σας.
+              </div>
+
+              <div>
+                <label htmlFor="payment-reference" className="form-label">Αναφορά συναλλαγής</label>
+                <input
+                  id="payment-reference"
+                  value={paymentReference}
+                  onChange={(event) => setPaymentReference(event.target.value)}
+                  minLength={3}
+                  maxLength={100}
+                  required
+                  className="form-input"
+                  placeholder="π.χ. DEMO-TRANSFER-123"
+                  autoComplete="off"
+                />
+                <p className="mt-1 text-xs text-slate-500">Χρησιμοποιήστε οποιαδήποτε demo αναφορά — όχι πραγματικά τραπεζικά στοιχεία.</p>
+              </div>
+
+              <div>
+                <label htmlFor="payment-notes" className="form-label">Σημειώσεις (προαιρετικά)</label>
+                <textarea
+                  id="payment-notes"
+                  value={paymentNotes}
+                  onChange={(event) => setPaymentNotes(event.target.value)}
+                  maxLength={500}
+                  rows={4}
+                  className="form-input resize-none"
+                  placeholder="Προαιρετική σημείωση προς τον διαχειριστή"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="btn btn-outline btn-md"
+                >
+                  Ακύρωση
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingPayment}
+                  className="btn btn-primary btn-md"
+                >
+                  {submittingPayment ? 'Καταχώρηση…' : 'Καταχώρηση για έλεγχο'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

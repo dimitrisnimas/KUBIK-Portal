@@ -76,7 +76,10 @@ function generateInvoicePdf(invoice) {
     addRow(doc, 'Περιγραφή', invoice.description || 'Υπηρεσίες KUBIK Portal', 344);
     addRow(doc, 'Ημερομηνία έκδοσης', date(invoice.created_at || new Date()), 366);
     addRow(doc, 'Ημερομηνία λήξης', date(invoice.due_date), 388);
-    addRow(doc, 'Κατάσταση', statusLabel(invoice.status), 410, { bold: true });
+    const displayedStatus = invoice.payment_reference && invoice.status === 'pending'
+      ? `${statusLabel(invoice.status)} — δηλώθηκε πληρωμή`
+      : statusLabel(invoice.status);
+    addRow(doc, 'Κατάσταση', displayedStatus, 410, { bold: true });
 
     doc.moveTo(56, 452).lineTo(539, 452).strokeColor('#e2e8f0').stroke();
     doc.font('bold').fontSize(13).fillColor('#0f172a').text('Ανάλυση ποσού', 56, 478);
