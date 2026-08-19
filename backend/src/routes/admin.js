@@ -57,10 +57,6 @@ async function getVatRate() {
 const path = require('path');
 const fs = require('fs');
 
-const uploadsDir = getUploadDirectory('invoices');
-
-
-
 // Admin users management
 router.get('/users', requireAdmin, async (req, res) => {
   try {
@@ -382,6 +378,7 @@ router.post('/billing/upload-invoice', requireAdmin, upload.single('pdf_file'), 
     let fileSize = null;
     if (req.file) {
       // Save PDF to disk
+      const uploadsDir = getUploadDirectory('invoices');
       const ext = path.extname(req.file.originalname) || '.pdf';
       const safeInvoiceNumber = invoiceNumber.replace(/[^a-zA-Z0-9-_]/g, '');
       fileName = `${safeInvoiceNumber}${ext}`;

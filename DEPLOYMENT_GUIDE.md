@@ -25,6 +25,7 @@ SESSION_SECRET=replace-with-at-least-32-random-characters
 OTP_HASH_SECRET=replace-with-a-different-32-character-secret
 OTP_TTL_MINUTES=10
 OTP_RESEND_SECONDS=60
+DEMO_SESSION_TTL_SECONDS=10800
 SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
 SMTP_SECURE=false

@@ -4,7 +4,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const PgSession = require('connect-pg-simple')(session);
 const db = require('./config/database');
-const { uploadsRoot } = require('./config/uploads');
+const { SESSION_TTL_SECONDS } = require('./config/session');
+const { workspaceContext } = require('./middleware/workspace-context');
 
 // Route imports
 const authRouter = require('./routes/auth');
@@ -74,7 +75,7 @@ const sessionStore = new PgSession({
   tableName: 'sessions',
   createTableIfMissing: true,
   pruneSessionInterval: 15 * 60,
-  ttl: 3 * 60 * 60,
+  ttl: SESSION_TTL_SECONDS,
 });
 
 // Session configuration
@@ -91,8 +92,7 @@ app.use(session({
   },
 }));
 
-// Serverless-safe, ephemeral demo uploads. Persistent files use external storage later.
-app.use('/uploads', express.static(uploadsRoot));
+app.use(workspaceContext);
 
 // Request logging middleware
 app.use((req, res, next) => {

@@ -4,6 +4,11 @@ const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
 const { requireAuth } = require('../middleware/auth');
 const { sendLoginOtp } = require('../utils/email');
+const {
+  cleanupExpiredWorkspaces,
+  createWorkspace,
+  destroyWorkspace,
+} = require('../services/demo-workspaces');
 
 const router = express.Router();
 
@@ -83,8 +88,8 @@ async function findDemoPersona(connection, role) {
   if (role === 'admin') {
     const [users] = await connection.execute(`
       SELECT u.*, pa.role AS admin_role
-      FROM users u
-      JOIN portal_admins pa ON pa.user_id = u.id
+      FROM public.users u
+      JOIN public.portal_admins pa ON pa.user_id = u.id
       WHERE u.status = 'approved' AND pa.role = 'super_admin'
       ORDER BY u.id
       LIMIT 1
@@ -94,28 +99,13 @@ async function findDemoPersona(connection, role) {
 
   const [users] = await connection.execute(`
     SELECT u.*, NULL::text AS admin_role
-    FROM users u
-    LEFT JOIN portal_admins pa ON pa.user_id = u.id
+    FROM public.users u
+    LEFT JOIN public.portal_admins pa ON pa.user_id = u.id
     WHERE u.status = 'approved' AND pa.id IS NULL
     ORDER BY u.id
     LIMIT 1
   `);
-  if (users[0]) return users[0];
-
-  await connection.execute(`
-    INSERT INTO users
-      (first_name, last_name, email, password_hash, status)
-    VALUES ('Demo', 'Client', 'demo-client@kubik.local', '!passwordless-demo-persona', 'approved')
-    ON CONFLICT (email) DO UPDATE SET status = 'approved'
-  `);
-
-  const [createdUsers] = await connection.execute(`
-    SELECT u.*, NULL::text AS admin_role
-    FROM users u
-    WHERE u.email = 'demo-client@kubik.local'
-    LIMIT 1
-  `);
-  return createdUsers[0];
+  return users[0];
 }
 
 router.post('/otp/request', otpRequestValidators, async (req, res) => {
@@ -125,8 +115,9 @@ router.post('/otp/request', otpRequestValidators, async (req, res) => {
   const requestIp = req.ip || 'unknown';
 
   try {
+    await cleanupExpiredWorkspaces();
     await db.execute(
-      "DELETE FROM auth_otp_challenges WHERE created_at < NOW() - INTERVAL '24 hours'"
+      "DELETE FROM public.auth_otp_challenges WHERE created_at < NOW() - INTERVAL '24 hours'"
     );
 
     const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
@@ -144,7 +135,7 @@ router.post('/otp/request', otpRequestValidators, async (req, res) => {
           COUNT(*) FILTER (WHERE email = ?) AS email_count,
           COUNT(*) FILTER (WHERE request_ip = ?) AS ip_count,
           MAX(created_at) FILTER (WHERE email = ?) AS latest_email_request
-        FROM auth_otp_challenges
+        FROM public.auth_otp_challenges
         WHERE created_at > NOW() - INTERVAL '15 minutes'
       `, [email, requestIp, email]);
 
@@ -170,13 +161,13 @@ router.post('/otp/request', otpRequestValidators, async (req, res) => {
       }
 
       await connection.execute(`
-        UPDATE auth_otp_challenges
+        UPDATE public.auth_otp_challenges
         SET consumed_at = NOW()
         WHERE email = ? AND requested_role = ? AND consumed_at IS NULL
       `, [email, role]);
 
       const [result] = await connection.execute(`
-        INSERT INTO auth_otp_challenges
+        INSERT INTO public.auth_otp_challenges
           (email, requested_role, code_hash, expires_at, request_ip)
         VALUES (?, ?, ?, ?, ?)
       `, [email, role, codeHash, expiresAt, requestIp]);
@@ -193,7 +184,7 @@ router.post('/otp/request', otpRequestValidators, async (req, res) => {
       await sendLoginOtp(email, code, OTP_TTL_MINUTES);
     } catch (error) {
       await db.execute(
-        'UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE id = ?',
+        'UPDATE public.auth_otp_challenges SET consumed_at = NOW() WHERE id = ?',
         [challenge.id]
       );
       console.error('OTP email delivery failed:', error.message);
@@ -220,7 +211,7 @@ router.post('/otp/verify', otpVerifyValidators, async (req, res) => {
     const verification = await db.transaction(async (connection) => {
       const [challenges] = await connection.execute(`
         SELECT *
-        FROM auth_otp_challenges
+        FROM public.auth_otp_challenges
         WHERE email = ? AND requested_role = ?
         ORDER BY created_at DESC
         LIMIT 1
@@ -240,7 +231,7 @@ router.post('/otp/verify', otpVerifyValidators, async (req, res) => {
       if (!hashesMatch(challenge.code_hash, suppliedHash)) {
         const attempts = challenge.attempts + 1;
         await connection.execute(`
-          UPDATE auth_otp_challenges
+          UPDATE public.auth_otp_challenges
           SET attempts = ?, consumed_at = CASE WHEN ?::integer >= ?::integer THEN NOW() ELSE consumed_at END
           WHERE id = ?
         `, [attempts, attempts, OTP_MAX_ATTEMPTS, challenge.id]);
@@ -259,14 +250,9 @@ router.post('/otp/verify', otpVerifyValidators, async (req, res) => {
       }
 
       await connection.execute(
-        'UPDATE auth_otp_challenges SET consumed_at = NOW() WHERE id = ?',
+        'UPDATE public.auth_otp_challenges SET consumed_at = NOW() WHERE id = ?',
         [challenge.id]
       );
-      await connection.execute(
-        'UPDATE users SET last_login = NOW() WHERE id = ?',
-        [persona.id]
-      );
-
       return { persona };
     });
 
@@ -274,11 +260,23 @@ router.post('/otp/verify', otpVerifyValidators, async (req, res) => {
       return res.status(verification.status).json({ error: verification.error });
     }
 
-    await regenerateSession(req);
-    req.session.userId = verification.persona.id;
-    req.session.demoRole = role;
-    req.session.verifiedEmail = email;
-    await saveSession(req);
+    const workspace = await createWorkspace({
+      email,
+      role,
+      personaId: verification.persona.id,
+    });
+    try {
+      await regenerateSession(req);
+      req.session.userId = verification.persona.id;
+      req.session.demoRole = role;
+      req.session.verifiedEmail = email;
+      req.session.workspaceSchema = workspace.schemaName;
+      req.session.workspaceExpiresAt = workspace.expiresAt.toISOString();
+      await saveSession(req);
+    } catch (error) {
+      await destroyWorkspace(workspace.schemaName).catch(() => {});
+      throw error;
+    }
 
     return res.json({
       message: 'Login successful',
@@ -299,20 +297,27 @@ router.post('/otp/verify', otpVerifyValidators, async (req, res) => {
   }
 });
 
-router.post('/logout', (req, res) => {
-  req.session.destroy((error) => {
-    if (error) {
-      console.error('Logout failed:', error.message);
-      return res.status(500).json({ error: 'Logout failed' });
+router.post('/logout', async (req, res) => {
+  const workspaceSchema = req.session.workspaceSchema;
+  try {
+    await new Promise((resolve, reject) => {
+      req.session.destroy((error) => (error ? reject(error) : resolve()));
+    });
+    if (workspaceSchema) {
+      await destroyWorkspace(workspaceSchema).catch((error) => {
+        console.error('Deferred workspace cleanup required:', error.message);
+      });
     }
-
     res.clearCookie('kubik_portal_sid', {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
     });
     return res.json({ message: 'Logout successful' });
-  });
+  } catch (error) {
+    console.error('Logout failed:', error.message);
+    return res.status(500).json({ error: 'Logout failed' });
+  }
 });
 
 router.get('/me', requireAuth, async (req, res) => {

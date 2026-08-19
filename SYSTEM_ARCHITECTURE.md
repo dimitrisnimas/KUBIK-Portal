@@ -23,6 +23,7 @@ A fully custom client portal for managing eShop development, social media manage
 - **email_queue** - Rate-limited email processing
 - **admin_activity_logs** - Complete audit trail
 - **user_sessions** - Secure session management
+- **demo_workspaces** - Expiring PostgreSQL schema allocated to each verified session
 - **system_settings** - Configurable system parameters
 
 ## 🔐 **Security Features**
@@ -32,6 +33,7 @@ A fully custom client portal for managing eShop development, social media manage
 - ✅ **Role-Based Access Control** - Super Admin, Admin, Asset Owner, Asset Admin
 - ✅ **One-Time Codes** - Short-lived, single-use codes stored only as HMAC hashes
 - ✅ **Session Management** - Browser-session cookies backed by PostgreSQL with a three-hour server TTL
+- ✅ **Session Isolation** - Every verified visitor works in an expiring copy of the demo dataset
 - ✅ **Rate Limiting** - Atomic per-email and per-IP OTP throttling
 - ✅ **Helmet Security** - Comprehensive security headers
 - ✅ **GDPR Compliance** - Cookie consent, data protection

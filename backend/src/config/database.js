@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const { getWorkspaceSchema, isWorkspaceSchema } = require('./request-context');
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -19,7 +20,22 @@ const pool = new Pool({
  */
 async function execute(statement, values = []) {
   const sql = normalizeStatement(statement);
-  const result = await pool.query(sql, values);
+  const workspaceSchema = getWorkspaceSchema();
+  let result;
+
+  if (workspaceSchema) {
+    if (!isWorkspaceSchema(workspaceSchema)) throw new Error('Invalid demo workspace context');
+    const client = await pool.connect();
+    try {
+      await client.query(`SET search_path TO "${workspaceSchema}", pg_catalog`);
+      result = await client.query(sql, values);
+    } finally {
+      await client.query('RESET search_path').catch(() => {});
+      client.release();
+    }
+  } else {
+    result = await pool.query(sql, values);
+  }
 
   if (/^\s*(SELECT|WITH)\b/i.test(sql)) {
     return [result.rows, result.fields];
@@ -35,6 +51,11 @@ async function transaction(callback) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const workspaceSchema = getWorkspaceSchema();
+    if (workspaceSchema) {
+      if (!isWorkspaceSchema(workspaceSchema)) throw new Error('Invalid demo workspace context');
+      await client.query(`SET LOCAL search_path TO "${workspaceSchema}", pg_catalog`);
+    }
     const value = await callback({
       execute: async (statement, values = []) => {
         const sql = normalizeStatement(statement);

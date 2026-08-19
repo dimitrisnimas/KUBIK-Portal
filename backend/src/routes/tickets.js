@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
@@ -8,8 +9,19 @@ const fs = require('fs');
 const { getUploadDirectory } = require('../config/uploads');
 
 // Configure multer for file uploads
-const uploadsDir = getUploadDirectory('tickets');
-const upload = multer({ dest: uploadsDir });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+});
+
+function storeAttachment(file) {
+  const uploadsDir = getUploadDirectory('tickets');
+  const safeName = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storedName = `${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+  const filePath = path.join(uploadsDir, storedName);
+  fs.writeFileSync(filePath, file.buffer);
+  return filePath;
+}
 
 const router = express.Router();
 
@@ -125,8 +137,7 @@ router.post('/', requireAuth, upload.array('attachments', 5), [
     // Handle attachments
     if (req.files) {
       for (const file of req.files) {
-        const newPath = path.join(uploadsDir, `${Date.now()}-${file.originalname}`);
-        fs.renameSync(file.path, newPath);
+        const newPath = storeAttachment(file);
         await db.execute(
           `INSERT INTO ticket_attachments (ticket_message_id, filename, file_path, file_size, mimetype)
            VALUES (?, ?, ?, ?, ?)`,
@@ -178,8 +189,7 @@ router.post('/:id/messages', requireAuth, upload.array('attachments', 5), [
     // Handle attachments
     if (req.files) {
       for (const file of req.files) {
-        const newPath = path.join(uploadsDir, `${Date.now()}-${file.originalname}`);
-        fs.renameSync(file.path, newPath);
+        const newPath = storeAttachment(file);
         await db.execute(
           `INSERT INTO ticket_attachments (ticket_message_id, filename, file_path, file_size, mimetype)
            VALUES (?, ?, ?, ?, ?)`,

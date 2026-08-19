@@ -47,6 +47,17 @@ CREATE INDEX IF NOT EXISTS idx_auth_otp_email_created
 CREATE INDEX IF NOT EXISTS idx_auth_otp_ip_created
   ON auth_otp_challenges(request_ip, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS demo_workspaces (
+  schema_name VARCHAR(40) PRIMARY KEY,
+  verified_email VARCHAR(320) NOT NULL,
+  demo_role VARCHAR(10) NOT NULL CHECK (demo_role IN ('admin', 'user')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (schema_name ~ '^demo_[a-f0-9]{32}$')
+);
+CREATE INDEX IF NOT EXISTS idx_demo_workspaces_expires
+  ON demo_workspaces(expires_at);
+
 CREATE TABLE IF NOT EXISTS categories (
   id BIGSERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
@@ -242,6 +253,16 @@ VALUES (
   'Administrator',
   'test@test.gr',
   '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+  'approved'
+)
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO users (first_name, last_name, email, password_hash, status)
+VALUES (
+  'Demo',
+  'Client',
+  'demo-client@kubik.local',
+  '!passwordless-demo-persona',
   'approved'
 )
 ON CONFLICT (email) DO NOTHING;

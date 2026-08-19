@@ -12,6 +12,10 @@ This project is a **Monorepo** containing both the frontend and backend:
 *   **`backend/`**: Node.js Express API with email OTP authentication.
 *   **`database/`**: PostgreSQL schema and deterministic demo seed data.
 
+Each verified visitor receives an isolated, expiring PostgreSQL workspace. Demo
+changes never modify the canonical seed dataset and are removed on logout or
+after the inactive session expires.
+
 ## 🚀 Deployment
 
 The frontend and API deploy together as two Vercel Services in one project.
