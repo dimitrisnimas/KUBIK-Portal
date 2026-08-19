@@ -37,6 +37,6 @@ SMTP_FROM_NAME=KUBIK Portal Demo
 Use the Neon pooled URL for serverless connection reuse. The pool is bounded to
 five connections per warm Vercel function instance.
 
-For a database created before passwordless authentication was added, run
-`database/migrations/2026081901_passwordless_otp.up.sql` once in the Neon SQL
-editor. The application never stores an OTP in plaintext.
+Initialize a new database with `database/database.sql`. The schema is
+idempotent, includes the passwordless authentication tables and never stores an
+OTP in plaintext.
