@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: kubik-portal-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Demo__Enabled
+        value: true
+      - key: ConnectionStrings__Portal
+        fromDatabase:
+          name: kubik-portal-db
+          property: connectionString
+      - key: Demo__OtpHashSecret
+        generateValue: true
+      - key: Smtp__Host
+        sync: false
+      - key: Smtp__Username
+        sync: false
+      - key: Smtp__Password
+        sync: false
+      - key: Smtp__FromAddress
+        sync: false
+
+databases:
+  - name: kubik-portal-db
+    databaseName: kubik_portal
+    user: kubik_portal

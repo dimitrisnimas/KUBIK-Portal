@@ -1,51 +1,39 @@
-# KubikPortal
+# KUBIK Portal Demo
 
-A standalone portfolio demonstration for managing clients, assets, tickets,
-billing, and services. The application is not connected to the shared KUBIK
-ecosystem and does not process real billing data.
+Δημόσιο portfolio/demo εφαρμογής client portal για ψηφιακό agency. Η νέα υλοποίηση χρησιμοποιεί ASP.NET Core 10, EF Core, PostgreSQL και Next.js 16. Κάθε επαληθευμένη είσοδος δημιουργεί νέο απομονωμένο workspace με deterministic seed data, το οποίο διαγράφεται στην αποσύνδεση ή στη λήξη της συνεδρίας.
 
-## 🏗️ Architecture
+## Δομή
 
-This project is a **Monorepo** containing both the frontend and backend:
+- `apps/api`: feature-oriented ASP.NET Core API και PostgreSQL migrations.
+- `apps/web`: Greek-only Next.js App Router frontend.
+- `apps/api/tests`: integration tests με πραγματικό PostgreSQL μέσω Testcontainers.
+- `legacy`: η προηγούμενη εφαρμογή και η εγκεκριμένη ανάλυση ως υλικό αναφοράς.
+- `docs`: συνοπτικές αποφάσεις της νέας αρχιτεκτονικής.
 
-*   **`frontend/`**: React application (Vite + Tailwind CSS).
-*   **`backend/`**: Node.js Express API with email OTP authentication.
-*   **`database/`**: PostgreSQL schema and deterministic demo seed data.
+## Τοπική εκτέλεση
 
-Each verified visitor receives an isolated, expiring PostgreSQL workspace. Demo
-changes never modify the canonical seed dataset and are removed on logout or
-after the inactive session expires.
+Απαιτούνται .NET 10, Node.js 22+, npm και Docker.
 
-## 🚀 Deployment
+1. Εκκινήστε PostgreSQL με `docker compose up -d postgres`.
+2. Εκκινήστε το API με `dotnet run --project apps/api/src/KubikPortal.Api`.
+3. Αντιγράψτε το `apps/web/.env.example` σε `apps/web/.env.local`.
+4. Εκτελέστε `npm install --prefix apps/web` και `npm run dev:web`.
 
-The frontend and API deploy together as two Vercel Services in one project.
-Public `/api/*` requests are routed to the Express service and all other
-requests are routed to the Vite service.
+Στο Development το API μπορεί να επιστρέφει τον OTP στη φόρμα όταν `Demo__RevealOtpInDevelopment=true`. Η τιμή παραγωγής πρέπει να είναι `false` και απαιτείται SMTP configuration. OTPs, email περιεχόμενο και credentials δεν καταγράφονται.
 
-## 🛠️ Local Development
+## Έλεγχοι
 
-### Prerequisites
-*   Node.js 20+
-*   PostgreSQL 16+ or a Neon database
+```text
+dotnet build KubikPortal.slnx --configuration Release
+dotnet test KubikPortal.slnx --configuration Release
+npm run lint:web
+npm run build:web
+```
 
-### Setup
-1.  Install dependencies:
-    ```bash
-    cd frontend && npm install
-    cd ../backend && npm install
-    ```
-2.  Setup Database:
-    *   Create a PostgreSQL database.
-    *   Run `psql "$DATABASE_URL" -f database/database.sql`.
-3.  Configure Environment:
-    *   Copy `.env.example` to `.env` in `backend/`.
-    *   Update database credentials.
+Τα integration tests χρησιμοποιούν Testcontainers και χρειάζονται διαθέσιμο Docker daemon.
 
-### Running the App
-*   **Backend**: `cd backend && npm run dev`
-*   **Frontend**: `cd frontend && npm run dev`
+## Παραγωγή
 
-## 📚 Documentation
-*   [Deployment Guide](DEPLOYMENT_GUIDE.md)
-*   [System Architecture](SYSTEM_ARCHITECTURE.md)
-*   [Setup Guide](SETUP_GUIDE.md)
+Το backend αναπτύσσεται στο Render από το `render.yaml` και το frontend στο Vercel με root directory `apps/web`. Στο Vercel ορίστε `API_ORIGIN` στο origin του Render service. Το `next.config.ts` προωθεί το browser `/api/*` στο backend, ώστε το authentication cookie να παραμένει same-origin. Δεν υπάρχει staging environment.
+
+Το `Demo__Enabled=true` είναι απαραίτητο για την επιλογή προσομοιωμένης persona. Τα SMTP secrets ορίζονται αποκλειστικά ως environment variables. Δεν υπάρχουν analytics tags, object storage ή εξωτερικές παραγωγικές συνδέσεις KUBIK.

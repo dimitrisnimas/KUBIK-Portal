@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/apps/" />
+  <Folder Name="/apps/api/" />
+  <Folder Name="/apps/api/src/">
+    <Project Path="apps/api/src/KubikPortal.Api/KubikPortal.Api.csproj" />
+  </Folder>
+  <Folder Name="/apps/api/tests/">
+    <Project Path="apps/api/tests/KubikPortal.Api.Tests/KubikPortal.Api.Tests.csproj" />
+  </Folder>
+</Solution>

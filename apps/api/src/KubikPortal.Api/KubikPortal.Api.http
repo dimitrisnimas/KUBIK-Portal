@@ -1,0 +1,6 @@
+@KubikPortal.Api_HostAddress = http://localhost:5022
+
+GET {{KubikPortal.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

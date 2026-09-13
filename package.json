@@ -1,17 +1,9 @@
 {
-  "name": "kubik-portal-demo",
-  "version": "1.0.0",
+  "name": "kubik-portal",
   "private": true,
-  "description": "Standalone KUBIK Portal portfolio demonstration",
   "scripts": {
-    "install:all": "npm ci --prefix backend && npm ci --prefix frontend",
-    "build": "npm run build --prefix frontend",
-    "start": "npm run start --prefix backend",
-    "dev:api": "npm run dev --prefix backend",
-    "dev:web": "npm run dev --prefix frontend",
-    "lint": "npm run lint --prefix frontend"
-  },
-  "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "dev:web": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build",
+    "lint:web": "npm --prefix apps/web run lint"
   }
 }
