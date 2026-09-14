@@ -59,6 +59,7 @@ public sealed class PortalDbContext(DbContextOptions<PortalDbContext> options, I
         {
             entity.Property(x => x.Name).HasMaxLength(100);
             entity.Property(x => x.Color).HasMaxLength(20);
+            entity.HasIndex(x => new { x.WorkspaceId, x.Name }).IsUnique();
         });
         modelBuilder.Entity<ServicePackage>(entity =>
         {
@@ -66,6 +67,7 @@ public sealed class PortalDbContext(DbContextOptions<PortalDbContext> options, I
             entity.Property(x => x.Description).HasMaxLength(1000);
             entity.Property(x => x.MonthlyPrice).HasPrecision(12, 2);
             entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.HasIndex(x => new { x.WorkspaceId, x.Name }).IsUnique();
             entity.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<ServicePackageFeature>(entity =>

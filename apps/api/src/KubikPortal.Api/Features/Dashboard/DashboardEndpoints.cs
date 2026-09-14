@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using KubikPortal.Api.Data;
 using KubikPortal.Api.Domain;
+using KubikPortal.Api.Features.Catalog;
 using Microsoft.EntityFrameworkCore;
 
 namespace KubikPortal.Api.Features.Dashboard;
@@ -10,7 +10,6 @@ public static class DashboardEndpoints
     public static RouteGroupBuilder MapDashboardEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/dashboard", GetDashboardAsync).RequireAuthorization();
-        api.MapGet("/assets", GetAssetsAsync).RequireAuthorization();
         return api;
     }
 
@@ -39,20 +38,6 @@ public static class DashboardEndpoints
             assets.Take(3).Select(AssetResponse.From).ToArray()));
     }
 
-    private static async Task<IResult> GetAssetsAsync(
-        HttpContext context,
-        PortalDbContext db,
-        WorkspaceContext workspaceContext,
-        CancellationToken cancellationToken)
-    {
-        var query = db.ManagedAssets.AsNoTracking();
-        if (!context.User.IsInRole(DemoRole.Administrator.ToString()))
-        {
-            query = query.Where(x => x.OwnerPersonaId == workspaceContext.PersonaId);
-        }
-        var assets = await query.Include(x => x.ServicePackage).OrderBy(x => x.Name).ToListAsync(cancellationToken);
-        return Results.Ok(assets.Select(AssetResponse.From));
-    }
 }
 
 public sealed record DashboardResponse(
@@ -62,31 +47,3 @@ public sealed record DashboardResponse(
     int ClientCount,
     decimal MonthlyTotal,
     IReadOnlyList<AssetResponse> RecentAssets);
-
-public sealed record AssetResponse(
-    Guid Id,
-    string Name,
-    string Type,
-    string TypeLabel,
-    string Status,
-    string? Url,
-    string? PackageName,
-    decimal? MonthlyPrice)
-{
-    public static AssetResponse From(ManagedAsset asset) => new(
-        asset.Id,
-        asset.Name,
-        asset.AssetType.ToString(),
-        asset.AssetType switch
-        {
-            AssetType.Website => "Ιστοσελίδα",
-            AssetType.Eshop => "Ηλεκτρονικό κατάστημα",
-            AssetType.SocialMedia => "Κοινωνικά δίκτυα",
-            AssetType.Seo => "SEO",
-            _ => asset.AssetType.ToString()
-        },
-        asset.Status == AssetStatus.Active ? "Ενεργό" : "Σε παύση",
-        asset.Url,
-        asset.ServicePackage != null ? asset.ServicePackage.Name : null,
-        asset.ServicePackage != null ? asset.ServicePackage.MonthlyPrice : null);
-}

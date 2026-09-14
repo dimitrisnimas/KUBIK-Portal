@@ -63,6 +63,45 @@ public sealed class DemoWorkspaceFlowTests : IAsyncLifetime
         Assert.False(await db.DemoWorkspaces.AnyAsync(x => x.Id == session.WorkspaceId));
     }
 
+    [Fact]
+    public async Task ClientAndAdministratorCatalogPermissionsAreEnforced()
+    {
+        var client = CreateClient();
+        var clientSession = await VerifyAsync(client, "client-catalog@example.com", "Client");
+        var catalog = await client.GetFromJsonAsync<JsonElement[]>("/api/v1/catalog");
+        var packageId = catalog![0].GetProperty("packages")[0].GetProperty("id").GetGuid();
+        var createAsset = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/v1/assets", clientSession.CsrfToken, new
+        {
+            name = "Νέο δοκιμαστικό έργο", assetType = "Website", url = "https://new.example.gr", servicePackageId = packageId
+        });
+        Assert.Equal(HttpStatusCode.Created, createAsset.StatusCode);
+        Assert.Equal(4, (await client.GetFromJsonAsync<JsonElement[]>("/api/v1/assets"))!.Length);
+
+        var forbidden = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/v1/admin/service-categories", clientSession.CsrfToken, new
+        {
+            name = "Μη επιτρεπτή", color = "#2563eb", displayOrder = 10, isActive = true
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        var administrator = CreateClient();
+        var adminSession = await VerifyAsync(administrator, "admin-catalog@example.com", "Administrator");
+        var createCategory = await SendWithCsrfAsync(administrator, HttpMethod.Post, "/api/v1/admin/service-categories", adminSession.CsrfToken, new
+        {
+            name = "Νέα κατηγορία", color = "#0f766e", displayOrder = 3, isActive = true
+        });
+        Assert.Equal(HttpStatusCode.Created, createCategory.StatusCode);
+        var category = await createCategory.Content.ReadFromJsonAsync<JsonElement>();
+        var categoryId = category.GetProperty("id").GetGuid();
+        var createPackage = await SendWithCsrfAsync(administrator, HttpMethod.Post, "/api/v1/admin/service-packages", adminSession.CsrfToken, new
+        {
+            categoryId, name = "Νέο πακέτο", description = "Περιγραφή δοκιμαστικού πακέτου.", monthlyPrice = 125.50m,
+            isActive = true, features = new[] { "Πρώτη παροχή", "Δεύτερη παροχή" }
+        });
+        Assert.Equal(HttpStatusCode.Created, createPackage.StatusCode);
+        var package = await createPackage.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(2, package.GetProperty("features").GetArrayLength());
+    }
+
     private HttpClient CreateClient() => _factory.CreateClient(new WebApplicationFactoryClientOptions
     {
         BaseAddress = new Uri("https://localhost"),
@@ -82,6 +121,13 @@ public sealed class DemoWorkspaceFlowTests : IAsyncLifetime
         });
         verify.EnsureSuccessStatusCode();
         return (await verify.Content.ReadFromJsonAsync<TestSession>())!;
+    }
+
+    private static Task<HttpResponseMessage> SendWithCsrfAsync(HttpClient client, HttpMethod method, string path, string csrfToken, object body)
+    {
+        var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body) };
+        request.Headers.Add("X-CSRF-TOKEN", csrfToken);
+        return client.SendAsync(request);
     }
 
     private sealed record TestSession(Guid WorkspaceId, string CsrfToken);

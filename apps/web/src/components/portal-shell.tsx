@@ -34,7 +34,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
   if (!session) return <main className="center-state"><span className="spinner" /><p>Φόρτωση δοκιμαστικού χώρου…</p></main>;
   const isAdmin = session.role === "Administrator";
-  const links = [{ href: "/portal", label: "Επισκόπηση", icon: "grid" }, { href: "/portal/assets", label: "Υπηρεσίες & έργα", icon: "briefcase" }];
+  const links = [
+    { href: "/portal", label: "Επισκόπηση", icon: "grid" },
+    { href: "/portal/assets", label: "Έργα", icon: "briefcase" },
+    { href: "/portal/services", label: "Πακέτα υπηρεσιών", icon: "layers" },
+  ];
 
   return <SessionContext.Provider value={session}>
     <div className="portal-frame">
@@ -73,6 +77,7 @@ function Icon({ name }: { name: string }) {
   const paths: Record<string, React.ReactNode> = {
     grid: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
     briefcase: <><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18"/></>,
+    layers: <><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 12 10 5 10-5M2 17l10 5 10-5"/></>,
     logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></>,
   };
   return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{paths[name]}</svg>;

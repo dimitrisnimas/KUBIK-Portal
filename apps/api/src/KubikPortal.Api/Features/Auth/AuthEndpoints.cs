@@ -34,8 +34,8 @@ public static class AuthEndpoints
         CancellationToken cancellationToken)
     {
         if (!options.Value.Enabled) return Results.NotFound();
-        var email = request.Email.Trim().ToLowerInvariant();
-        if (!new EmailAddressAttribute().IsValid(email))
+        var email = request.Email?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email) || !new EmailAddressAttribute().IsValid(email))
         {
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["Εισαγάγετε έγκυρη διεύθυνση email."] });
         }
@@ -83,7 +83,7 @@ public static class AuthEndpoints
         {
             return Results.BadRequest(new { message = "Ο κωδικός δεν είναι πλέον έγκυρος." });
         }
-        if (request.Code.Length != 6 || !protector.Verify(challenge.Id, request.Code, challenge.CodeHash))
+        if (request.Code is null || request.Code.Length != 6 || !protector.Verify(challenge.Id, request.Code, challenge.CodeHash))
         {
             challenge.FailedAttempts++;
             await db.SaveChangesAsync(cancellationToken);
@@ -157,9 +157,9 @@ public static class AuthEndpoints
     }
 }
 
-public sealed record RequestCodeRequest(string Email, DemoRole Role);
+public sealed record RequestCodeRequest(string? Email, DemoRole Role);
 public sealed record RequestCodeResponse(Guid ChallengeId, DateTimeOffset ExpiresAt, string? DevelopmentCode);
-public sealed record VerifyCodeRequest(Guid ChallengeId, string Code);
+public sealed record VerifyCodeRequest(Guid ChallengeId, string? Code);
 public sealed record SessionResponse(Guid WorkspaceId, DemoRole Role, string DisplayName, string Email, DateTimeOffset ExpiresAt, string CsrfToken)
 {
     public static SessionResponse From(DemoPersona persona, DemoWorkspace workspace, string csrfToken) =>

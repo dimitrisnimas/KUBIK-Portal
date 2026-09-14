@@ -6,7 +6,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const problem = await response.json().catch(() => null);
-    throw new Error(problem?.message ?? problem?.detail ?? "Η ενέργεια δεν ολοκληρώθηκε.");
+    const validationMessage = problem?.errors
+      ? Object.values(problem.errors as Record<string, string[]>).flat()[0]
+      : null;
+    throw new Error(problem?.message ?? problem?.detail ?? validationMessage ?? "Η ενέργεια δεν ολοκληρώθηκε.");
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;

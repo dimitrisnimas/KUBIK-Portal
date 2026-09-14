@@ -16,8 +16,30 @@ export type Asset = {
   typeLabel: string;
   status: string;
   url: string | null;
+  servicePackageId: string | null;
   packageName: string | null;
   monthlyPrice: number | null;
+  ownerName: string;
+};
+
+export type ServicePackage = {
+  id: string;
+  categoryId: string;
+  name: string;
+  description: string;
+  monthlyPrice: number;
+  currency: string;
+  isActive: boolean;
+  features: string[];
+};
+
+export type ServiceCategory = {
+  id: string;
+  name: string;
+  color: string;
+  displayOrder: number;
+  isActive: boolean;
+  packages: ServicePackage[];
 };
 
 export type Dashboard = {

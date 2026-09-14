@@ -2,6 +2,7 @@ using System.Threading.RateLimiting;
 using System.Text.Json.Serialization;
 using KubikPortal.Api.Data;
 using KubikPortal.Api.Features.Auth;
+using KubikPortal.Api.Features.Catalog;
 using KubikPortal.Api.Features.Dashboard;
 using KubikPortal.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -98,6 +99,7 @@ app.MapGet("/health/ready", async (PortalDbContext db, CancellationToken cancell
 var api = app.MapGroup("/api/v1");
 api.MapAuthEndpoints();
 api.MapDashboardEndpoints();
+api.MapCatalogEndpoints();
 
 await app.Services.ApplyDatabaseMigrationsAsync();
 app.Run();

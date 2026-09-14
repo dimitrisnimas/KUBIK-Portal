@@ -2,6 +2,8 @@
 
 Δημόσιο portfolio/demo εφαρμογής client portal για ψηφιακό agency. Η νέα υλοποίηση χρησιμοποιεί ASP.NET Core 10, EF Core, PostgreSQL και Next.js 16. Κάθε επαληθευμένη είσοδος δημιουργεί νέο απομονωμένο workspace με deterministic seed data, το οποίο διαγράφεται στην αποσύνδεση ή στη λήξη της συνεδρίας.
 
+Η τρέχουσα υλοποίηση καλύπτει OTP πρόσβαση, client/administrator demo personas, role-aware dashboard, διαχείριση έργων και πλήρη κατάλογο categories/packages. Οι client mutations περιορίζονται στα έργα της τρέχουσας persona και οι αλλαγές καταλόγου απαιτούν administrator role και CSRF token.
+
 ## Δομή
 
 - `apps/api`: feature-oriented ASP.NET Core API και PostgreSQL migrations.

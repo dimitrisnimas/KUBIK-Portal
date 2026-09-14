@@ -248,6 +248,9 @@ namespace KubikPortal.Api.Data.Migrations
 
                     b.HasIndex("WorkspaceId");
 
+                    b.HasIndex("WorkspaceId", "Name")
+                        .IsUnique();
+
                     b.ToTable("ServiceCategories", "portal");
                 });
 
@@ -290,6 +293,9 @@ namespace KubikPortal.Api.Data.Migrations
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "Name")
+                        .IsUnique();
 
                     b.ToTable("ServicePackages", "portal");
                 });
