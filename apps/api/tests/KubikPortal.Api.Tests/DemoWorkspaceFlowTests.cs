@@ -102,6 +102,53 @@ public sealed class DemoWorkspaceFlowTests : IAsyncLifetime
         Assert.Equal(2, package.GetProperty("features").GetArrayLength());
     }
 
+    [Fact]
+    public async Task TicketBillingAndTransitionRulesAreServerEnforced()
+    {
+        var client = CreateClient();
+        var clientSession = await VerifyAsync(client, "ticket-client@example.com", "Client");
+        var rejectedClientBilling = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/v1/tickets", clientSession.CsrfToken, new
+        {
+            title = "Αίτημα με μη επιτρεπτό πεδίο", message = "Το αίτημα πρέπει να απορριφθεί.",
+            kind = "Support", priority = "Normal", managedAssetId = (Guid?)null, chargeable = true
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, rejectedClientBilling.StatusCode);
+
+        var createTicket = await SendWithCsrfAsync(client, HttpMethod.Post, "/api/v1/tickets", clientSession.CsrfToken, new
+        {
+            title = "Νέο αίτημα υποστήριξης", message = "Παρακαλώ ελέγξτε τη συγκεκριμένη λειτουργία.",
+            kind = "Support", priority = "High", managedAssetId = (Guid?)null
+        });
+        Assert.Equal(HttpStatusCode.Created, createTicket.StatusCode);
+        var created = await createTicket.Content.ReadFromJsonAsync<JsonElement>();
+        var ticketId = created.GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.Forbidden, (await SendWithCsrfAsync(
+            client, HttpMethod.Post, $"/api/v1/admin/tickets/{ticketId}/billing-decisions", clientSession.CsrfToken,
+            new { decision = "Covered", price = (decimal?)null, note = "Δεν επιτρέπεται." })).StatusCode);
+
+        var administrator = CreateClient();
+        var adminSession = await VerifyAsync(administrator, "ticket-admin@example.com", "Administrator");
+        var tickets = await administrator.GetFromJsonAsync<JsonElement[]>("/api/v1/tickets");
+        var seededNewTicket = tickets!.Single(x => x.GetProperty("status").GetString() == "New");
+        var seededId = seededNewTicket.GetProperty("id").GetGuid();
+        var invalidTransition = await SendWithCsrfAsync(administrator, HttpMethod.Patch,
+            $"/api/v1/admin/tickets/{seededId}/status", adminSession.CsrfToken, new { status = "Resolved" });
+        Assert.Equal(HttpStatusCode.Conflict, invalidTransition.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await SendWithCsrfAsync(administrator, HttpMethod.Patch,
+            $"/api/v1/admin/tickets/{seededId}/status", adminSession.CsrfToken, new { status = "InProgress" })).StatusCode);
+
+        var missingPrice = await SendWithCsrfAsync(administrator, HttpMethod.Post,
+            $"/api/v1/admin/tickets/{seededId}/billing-decisions", adminSession.CsrfToken,
+            new { decision = "Chargeable", price = (decimal?)null, note = "Χρειάζεται εκτίμηση." });
+        Assert.Equal(HttpStatusCode.BadRequest, missingPrice.StatusCode);
+        var validDecision = await SendWithCsrfAsync(administrator, HttpMethod.Post,
+            $"/api/v1/admin/tickets/{seededId}/billing-decisions", adminSession.CsrfToken,
+            new { decision = "Chargeable", price = 320m, note = "Εγκεκριμένη εκτίμηση demo." });
+        Assert.Equal(HttpStatusCode.Created, validDecision.StatusCode);
+        var detail = await administrator.GetFromJsonAsync<JsonElement>($"/api/v1/tickets/{seededId}");
+        Assert.True(detail.GetProperty("billingDecisions").GetArrayLength() >= 2);
+    }
+
     private HttpClient CreateClient() => _factory.CreateClient(new WebApplicationFactoryClientOptions
     {
         BaseAddress = new Uri("https://localhost"),

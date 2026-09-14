@@ -68,10 +68,27 @@ public sealed class DemoWorkspaceFactory(
             Feature(workspaceId, commerce.Id, "commerce:2", 2, "Έως 5 ώρες τεχνικής υποστήριξης"),
             Feature(workspaceId, growth.Id, "growth:1", 1, "Μηνιαία αναφορά SEO"));
 
-        db.ManagedAssets.AddRange(
-            Asset(workspaceId, client.Id, care.Id, "Εταιρική Ιστοσελίδα", AssetType.Website, "https://example.gr", now.AddMonths(-8)),
-            Asset(workspaceId, client.Id, commerce.Id, "Ηλεκτρονικό Κατάστημα", AssetType.Eshop, "https://shop.example.gr", now.AddMonths(-4)),
-            Asset(workspaceId, client.Id, growth.Id, "Οργανική Ανάπτυξη", AssetType.Seo, null, now.AddMonths(-2)));
+        var website = Asset(workspaceId, client.Id, care.Id, "Εταιρική Ιστοσελίδα", AssetType.Website, "https://example.gr", now.AddMonths(-8));
+        var eshop = Asset(workspaceId, client.Id, commerce.Id, "Ηλεκτρονικό Κατάστημα", AssetType.Eshop, "https://shop.example.gr", now.AddMonths(-4));
+        var seo = Asset(workspaceId, client.Id, growth.Id, "Οργανική Ανάπτυξη", AssetType.Seo, null, now.AddMonths(-2));
+        db.ManagedAssets.AddRange(website, eshop, seo);
+
+        var contentTicket = Ticket(workspaceId, client.Id, website.Id, "K-1001", "Ενημέρωση στοιχείων επικοινωνίας", TicketKind.ChangeRequest, TicketPriority.Normal, TicketStatus.InProgress, now.AddDays(-6));
+        var speedTicket = Ticket(workspaceId, client.Id, eshop.Id, "K-1002", "Έλεγχος ταχύτητας καταστήματος", TicketKind.Support, TicketPriority.High, TicketStatus.AwaitingClient, now.AddDays(-3));
+        var landingTicket = Ticket(workspaceId, client.Id, website.Id, "K-1003", "Νέα landing page καμπάνιας", TicketKind.ChangeRequest, TicketPriority.Normal, TicketStatus.New, now.AddDays(-1));
+        contentTicket.UpdatedAt = now.AddDays(-5);
+        speedTicket.UpdatedAt = now.AddDays(-2);
+        landingTicket.UpdatedAt = now.AddHours(-18);
+        db.SupportTickets.AddRange(contentTicket, speedTicket, landingTicket);
+        db.TicketMessages.AddRange(
+            Message(workspaceId, contentTicket.Id, client.Id, "message:1001:1", "Θα θέλαμε να ενημερωθούν το τηλέφωνο και η διεύθυνση στη σελίδα επικοινωνίας.", now.AddDays(-6)),
+            Message(workspaceId, contentTicket.Id, administrator.Id, "message:1001:2", "Λάβαμε το αίτημα και έχουμε ξεκινήσει την ενημέρωση.", now.AddDays(-5)),
+            Message(workspaceId, speedTicket.Id, client.Id, "message:1002:1", "Το κατάστημα φαίνεται πιο αργό τις απογευματινές ώρες. Μπορείτε να το ελέγξετε;", now.AddDays(-3)),
+            Message(workspaceId, speedTicket.Id, administrator.Id, "message:1002:2", "Ο αρχικός έλεγχος ολοκληρώθηκε. Χρειαζόμαστε ένα πρόσφατο παράδειγμα σελίδας που άργησε.", now.AddDays(-2)),
+            Message(workspaceId, landingTicket.Id, client.Id, "message:1003:1", "Χρειαζόμαστε μία νέα landing page για την ανοιξιάτικη καμπάνια.", now.AddDays(-1)));
+        db.TicketBillingDecisions.AddRange(
+            Decision(workspaceId, speedTicket.Id, administrator.Id, "decision:1002:1", BillingDecisionKind.Covered, null, "Καλύπτεται από το ενεργό πακέτο υποστήριξης.", now.AddDays(-2)),
+            Decision(workspaceId, landingTicket.Id, administrator.Id, "decision:1003:1", BillingDecisionKind.Chargeable, 480m, "Εκτίμηση για σχεδιασμό και ανάπτυξη landing page.", now.AddHours(-18)));
 
         var selectedPersona = selectedRole == DemoRole.Administrator ? administrator : client;
         var session = new DemoSession
@@ -111,6 +128,25 @@ public sealed class DemoWorkspaceFactory(
     {
         Id = StableId(workspaceId, $"asset:{name}"), WorkspaceId = workspaceId, OwnerPersonaId = ownerId,
         ServicePackageId = packageId, Name = name, AssetType = type, Status = AssetStatus.Active, Url = url, CreatedAt = createdAt
+    };
+
+    private static SupportTicket Ticket(Guid workspaceId, Guid ownerId, Guid? assetId, string number, string title, TicketKind kind, TicketPriority priority, TicketStatus status, DateTimeOffset createdAt) => new()
+    {
+        Id = StableId(workspaceId, $"ticket:{number}"), WorkspaceId = workspaceId, OwnerPersonaId = ownerId,
+        ManagedAssetId = assetId, Number = number, Title = title, Kind = kind, Priority = priority,
+        Status = status, CreatedAt = createdAt, UpdatedAt = createdAt
+    };
+
+    private static TicketMessage Message(Guid workspaceId, Guid ticketId, Guid authorId, string key, string body, DateTimeOffset createdAt) => new()
+    {
+        Id = StableId(workspaceId, key), WorkspaceId = workspaceId, TicketId = ticketId,
+        AuthorPersonaId = authorId, Body = body, CreatedAt = createdAt
+    };
+
+    private static TicketBillingDecision Decision(Guid workspaceId, Guid ticketId, Guid reviewerId, string key, BillingDecisionKind decision, decimal? price, string note, DateTimeOffset decidedAt) => new()
+    {
+        Id = StableId(workspaceId, key), WorkspaceId = workspaceId, TicketId = ticketId,
+        ReviewerPersonaId = reviewerId, Decision = decision, Price = price, Currency = "EUR", Note = note, DecidedAt = decidedAt
     };
 
     private static Guid StableId(Guid workspaceId, string key)

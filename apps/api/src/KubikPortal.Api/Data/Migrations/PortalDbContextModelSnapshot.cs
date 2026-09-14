@@ -329,6 +329,153 @@ namespace KubikPortal.Api.Data.Migrations
                     b.ToTable("ServicePackageFeatures", "portal");
                 });
 
+            modelBuilder.Entity("KubikPortal.Api.Domain.SupportTicket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("ManagedAssetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("OwnerPersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ManagedAssetId");
+
+                    b.HasIndex("OwnerPersonaId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "Number")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId", "UpdatedAt");
+
+                    b.ToTable("SupportTickets", "portal");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.TicketBillingDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateTimeOffset>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal?>("Price")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<Guid>("ReviewerPersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReviewerPersonaId");
+
+                    b.HasIndex("TicketId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "TicketId", "DecidedAt");
+
+                    b.ToTable("TicketBillingDecisions", "portal");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.TicketMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuthorPersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorPersonaId");
+
+                    b.HasIndex("TicketId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "TicketId", "CreatedAt");
+
+                    b.ToTable("TicketMessages", "portal");
+                });
+
             modelBuilder.Entity("KubikPortal.Api.Domain.DemoPersona", b =>
                 {
                     b.HasOne("KubikPortal.Api.Domain.DemoWorkspace", "Workspace")
@@ -434,9 +581,96 @@ namespace KubikPortal.Api.Data.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("KubikPortal.Api.Domain.SupportTicket", b =>
+                {
+                    b.HasOne("KubikPortal.Api.Domain.ManagedAsset", "ManagedAsset")
+                        .WithMany()
+                        .HasForeignKey("ManagedAssetId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("KubikPortal.Api.Domain.DemoPersona", "OwnerPersona")
+                        .WithMany()
+                        .HasForeignKey("OwnerPersonaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KubikPortal.Api.Domain.DemoWorkspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ManagedAsset");
+
+                    b.Navigation("OwnerPersona");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.TicketBillingDecision", b =>
+                {
+                    b.HasOne("KubikPortal.Api.Domain.DemoPersona", "ReviewerPersona")
+                        .WithMany()
+                        .HasForeignKey("ReviewerPersonaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KubikPortal.Api.Domain.SupportTicket", "Ticket")
+                        .WithMany("BillingDecisions")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KubikPortal.Api.Domain.DemoWorkspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReviewerPersona");
+
+                    b.Navigation("Ticket");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.TicketMessage", b =>
+                {
+                    b.HasOne("KubikPortal.Api.Domain.DemoPersona", "AuthorPersona")
+                        .WithMany()
+                        .HasForeignKey("AuthorPersonaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KubikPortal.Api.Domain.SupportTicket", "Ticket")
+                        .WithMany("Messages")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KubikPortal.Api.Domain.DemoWorkspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorPersona");
+
+                    b.Navigation("Ticket");
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("KubikPortal.Api.Domain.ServicePackage", b =>
                 {
                     b.Navigation("Features");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.SupportTicket", b =>
+                {
+                    b.Navigation("BillingDecisions");
+
+                    b.Navigation("Messages");
                 });
 #pragma warning restore 612, 618
         }

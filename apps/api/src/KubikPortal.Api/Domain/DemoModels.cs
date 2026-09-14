@@ -4,6 +4,10 @@ public enum DemoRole { Client, Administrator }
 public enum PersonaStatus { Active, Inactive }
 public enum AssetType { Website, Eshop, SocialMedia, Seo }
 public enum AssetStatus { Active, Paused }
+public enum TicketKind { Support, ChangeRequest, Bug, Feature }
+public enum TicketPriority { Normal, High, Urgent }
+public enum TicketStatus { New, InProgress, AwaitingClient, Resolved, Closed }
+public enum BillingDecisionKind { Covered, Chargeable }
 
 public sealed class DemoWorkspace
 {
@@ -70,6 +74,46 @@ public sealed class ManagedAsset : WorkspaceEntity
     public AssetStatus Status { get; set; }
     public string? Url { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class SupportTicket : WorkspaceEntity
+{
+    public Guid OwnerPersonaId { get; set; }
+    public DemoPersona OwnerPersona { get; set; } = null!;
+    public Guid? ManagedAssetId { get; set; }
+    public ManagedAsset? ManagedAsset { get; set; }
+    public required string Number { get; set; }
+    public required string Title { get; set; }
+    public TicketKind Kind { get; set; }
+    public TicketPriority Priority { get; set; }
+    public TicketStatus Status { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<TicketMessage> Messages { get; set; } = [];
+    public List<TicketBillingDecision> BillingDecisions { get; set; } = [];
+}
+
+public sealed class TicketMessage : WorkspaceEntity
+{
+    public Guid TicketId { get; set; }
+    public SupportTicket Ticket { get; set; } = null!;
+    public Guid AuthorPersonaId { get; set; }
+    public DemoPersona AuthorPersona { get; set; } = null!;
+    public required string Body { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class TicketBillingDecision : WorkspaceEntity
+{
+    public Guid TicketId { get; set; }
+    public SupportTicket Ticket { get; set; } = null!;
+    public BillingDecisionKind Decision { get; set; }
+    public decimal? Price { get; set; }
+    public required string Currency { get; set; }
+    public string? Note { get; set; }
+    public Guid ReviewerPersonaId { get; set; }
+    public DemoPersona ReviewerPersona { get; set; } = null!;
+    public DateTimeOffset DecidedAt { get; set; }
 }
 
 public sealed class OtpChallenge

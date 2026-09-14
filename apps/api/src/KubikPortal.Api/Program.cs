@@ -1,9 +1,11 @@
 using System.Threading.RateLimiting;
 using System.Text.Json.Serialization;
+using System.Text.Json;
 using KubikPortal.Api.Data;
 using KubikPortal.Api.Features.Auth;
 using KubikPortal.Api.Features.Catalog;
 using KubikPortal.Api.Features.Dashboard;
+using KubikPortal.Api.Features.Tickets;
 using KubikPortal.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -68,7 +70,11 @@ builder.Services.AddRateLimiter(options =>
         }));
 });
 builder.Services.AddProblemDetails();
-builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
+    options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+});
 builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 
@@ -100,6 +106,7 @@ var api = app.MapGroup("/api/v1");
 api.MapAuthEndpoints();
 api.MapDashboardEndpoints();
 api.MapCatalogEndpoints();
+api.MapTicketEndpoints();
 
 await app.Services.ApplyDatabaseMigrationsAsync();
 app.Run();

@@ -12,6 +12,9 @@ public sealed class PortalDbContext(DbContextOptions<PortalDbContext> options, I
     public DbSet<ServicePackage> ServicePackages => Set<ServicePackage>();
     public DbSet<ServicePackageFeature> ServicePackageFeatures => Set<ServicePackageFeature>();
     public DbSet<ManagedAsset> ManagedAssets => Set<ManagedAsset>();
+    public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
+    public DbSet<TicketMessage> TicketMessages => Set<TicketMessage>();
+    public DbSet<TicketBillingDecision> TicketBillingDecisions => Set<TicketBillingDecision>();
     public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
     public DbSet<DemoSession> DemoSessions => Set<DemoSession>();
 
@@ -46,6 +49,9 @@ public sealed class PortalDbContext(DbContextOptions<PortalDbContext> options, I
         ConfigureWorkspaceEntity<ServicePackage>(modelBuilder);
         ConfigureWorkspaceEntity<ServicePackageFeature>(modelBuilder);
         ConfigureWorkspaceEntity<ManagedAsset>(modelBuilder);
+        ConfigureWorkspaceEntity<SupportTicket>(modelBuilder);
+        ConfigureWorkspaceEntity<TicketMessage>(modelBuilder);
+        ConfigureWorkspaceEntity<TicketBillingDecision>(modelBuilder);
 
         modelBuilder.Entity<DemoPersona>(entity =>
         {
@@ -83,6 +89,35 @@ public sealed class PortalDbContext(DbContextOptions<PortalDbContext> options, I
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             entity.HasOne(x => x.OwnerPersona).WithMany().HasForeignKey(x => x.OwnerPersonaId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.ServicePackage).WithMany().HasForeignKey(x => x.ServicePackageId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<SupportTicket>(entity =>
+        {
+            entity.Property(x => x.Number).HasMaxLength(32);
+            entity.Property(x => x.Title).HasMaxLength(180);
+            entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.Priority).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.HasIndex(x => new { x.WorkspaceId, x.Number }).IsUnique();
+            entity.HasIndex(x => new { x.WorkspaceId, x.UpdatedAt });
+            entity.HasOne(x => x.OwnerPersona).WithMany().HasForeignKey(x => x.OwnerPersonaId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ManagedAsset).WithMany().HasForeignKey(x => x.ManagedAssetId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<TicketMessage>(entity =>
+        {
+            entity.Property(x => x.Body).HasMaxLength(4000);
+            entity.HasIndex(x => new { x.WorkspaceId, x.TicketId, x.CreatedAt });
+            entity.HasOne(x => x.Ticket).WithMany(x => x.Messages).HasForeignKey(x => x.TicketId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.AuthorPersona).WithMany().HasForeignKey(x => x.AuthorPersonaId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<TicketBillingDecision>(entity =>
+        {
+            entity.Property(x => x.Decision).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.Price).HasPrecision(12, 2);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.Note).HasMaxLength(500);
+            entity.HasIndex(x => new { x.WorkspaceId, x.TicketId, x.DecidedAt });
+            entity.HasOne(x => x.Ticket).WithMany(x => x.BillingDecisions).HasForeignKey(x => x.TicketId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.ReviewerPersona).WithMany().HasForeignKey(x => x.ReviewerPersonaId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 

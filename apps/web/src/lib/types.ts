@@ -46,7 +46,50 @@ export type Dashboard = {
   role: DemoRole;
   assetCount: number;
   activeAssetCount: number;
+  openTicketCount: number;
   clientCount: number;
   monthlyTotal: number;
   recentAssets: Asset[];
+};
+
+export type BillingDecision = {
+  id: string;
+  decision: "Covered" | "Chargeable";
+  decisionLabel: string;
+  price: number | null;
+  currency: string;
+  note: string | null;
+  reviewerName: string;
+  decidedAt: string;
+};
+
+export type TicketSummary = {
+  id: string;
+  number: string;
+  title: string;
+  kind: string;
+  kindLabel: string;
+  priority: string;
+  priorityLabel: string;
+  status: string;
+  statusLabel: string;
+  assetName: string | null;
+  updatedAt: string;
+  messageCount: number;
+  billingDecision: BillingDecision | null;
+};
+
+export type TicketMessage = {
+  id: string;
+  body: string;
+  authorName: string;
+  authorRole: DemoRole;
+  createdAt: string;
+};
+
+export type TicketDetail = Omit<TicketSummary, "updatedAt" | "messageCount" | "billingDecision"> & {
+  ownerName: string;
+  createdAt: string;
+  messages: TicketMessage[];
+  billingDecisions: BillingDecision[];
 };
