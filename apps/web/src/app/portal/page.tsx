@@ -21,7 +21,8 @@ export default function DashboardPage() {
       <section className="stat-grid" aria-label="Βασικά στοιχεία">
         <StatCard tone="blue" label="Σύνολο έργων" value={data.assetCount.toString()} note="στο demo workspace" />
         <StatCard tone="green" label="Ενεργές υπηρεσίες" value={data.activeAssetCount.toString()} note="σε κανονική λειτουργία" />
-        {session.role === "Administrator" && <StatCard tone="violet" label="Demo πελάτες" value={data.clientCount.toString()} note="ενεργές περσόνες" />}
+        <StatCard tone="violet" label="Ανοιχτά αιτήματα" value={data.openTicketCount.toString()} note="χρειάζονται παρακολούθηση" />
+        {session.role === "Administrator" && <StatCard tone="blue" label="Demo πελάτες" value={data.clientCount.toString()} note="ενεργές περσόνες" />}
         <StatCard tone="orange" label="Μηνιαία αξία" value={formatCurrency(data.monthlyTotal)} note="προσομοιωμένο σύνολο" />
       </section>
       <section className="panel">

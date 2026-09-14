@@ -39,6 +39,8 @@ public static class AuthEndpoints
         {
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["Εισαγάγετε έγκυρη διεύθυνση email."] });
         }
+        if (!Enum.IsDefined(request.Role))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["role"] = ["Ο δοκιμαστικός ρόλος δεν είναι έγκυρος."] });
 
         var latest = await db.OtpChallenges.Where(x => x.Email == email)
             .OrderByDescending(x => x.CreatedAt).FirstOrDefaultAsync(cancellationToken);

@@ -7,3 +7,5 @@
 Η συνεδρία περιλαμβάνει μόνο αναγνωριστικά για το `DemoSession`, το workspace και την επιλεγμένη προσομοιωμένη persona μέσα σε κρυπτογραφημένο HTTP-only cookie. Κάθε authenticated request ελέγχει τη server-side εγγραφή και την ημερομηνία λήξης πριν ορίσει το workspace scope.
 
 Τα attachments είναι εκτός v1. Μελλοντικά μπορούν να προστεθούν ως ξεχωριστή οντότητα μηνύματος ticket και να αποθηκεύονται σε private object storage με εξουσιοδοτημένο upload/download, όρια μεγέθους, allow-list τύπων, ασφαλή generated keys, resource authorization, scanning και διαγραφή μαζί με το workspace.
+
+Τα support/change requests μοντελοποιούνται ως `SupportTicket` και append-only `TicketMessage` εγγραφές. Ο client ορίζει μόνο τίτλο, τύπο, προτεραιότητα, σχετικό asset και περιγραφή. Η κατάσταση αλλάζει από administrator μέσα από ρητό transition table. Οι αποφάσεις κάλυψης ή χρέωσης αποθηκεύονται ως immutable `TicketBillingDecision` history με reviewer, timestamp, σημείωση και τιμή μόνο όταν η απόφαση είναι `Chargeable`. Δεν υπάρχουν attachment ή client billing fields στα request contracts.

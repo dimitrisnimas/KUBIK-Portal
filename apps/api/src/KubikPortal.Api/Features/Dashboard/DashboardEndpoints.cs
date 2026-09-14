@@ -29,10 +29,15 @@ public static class DashboardEndpoints
         var clientCount = isAdministrator
             ? await db.DemoPersonas.CountAsync(x => x.Role == DemoRole.Client && x.Status == PersonaStatus.Active, cancellationToken)
             : 1;
+        var ticketsQuery = db.SupportTickets.AsNoTracking();
+        if (!isAdministrator) ticketsQuery = ticketsQuery.Where(x => x.OwnerPersonaId == workspaceContext.PersonaId);
+        var openTicketCount = await ticketsQuery.CountAsync(
+            x => x.Status != TicketStatus.Resolved && x.Status != TicketStatus.Closed, cancellationToken);
         return Results.Ok(new DashboardResponse(
             isAdministrator ? "Administrator" : "Client",
             assets.Count,
             activeAssets,
+            openTicketCount,
             clientCount,
             monthlyTotal,
             assets.Take(3).Select(AssetResponse.From).ToArray()));
@@ -44,6 +49,7 @@ public sealed record DashboardResponse(
     string Role,
     int AssetCount,
     int ActiveAssetCount,
+    int OpenTicketCount,
     int ClientCount,
     decimal MonthlyTotal,
     IReadOnlyList<AssetResponse> RecentAssets);

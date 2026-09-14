@@ -1,6 +1,6 @@
 # KUBIK Portal rewrite specification
 
-**Status:** implementation-ready; access/workspace and assets/catalog vertical slices implemented.
+**Status:** implementation-ready; access/workspace, assets/catalog and tickets vertical slices implemented.
 **Product mode:** public portfolio/demo application.  
 **Environments:** local development and production on Vercel + Render. There is no staging environment.
 
@@ -64,6 +64,11 @@ Implemented endpoints:
 | `PATCH` | `/api/v1/admin/assets/{id}/status` | Changes asset status for the simulated administrator only. |
 | `POST/PUT/DELETE` | `/api/v1/admin/service-categories/*` | Administrator-only category management. |
 | `POST/PUT/DELETE` | `/api/v1/admin/service-packages/*` | Administrator-only package and feature management. |
+| `GET/POST` | `/api/v1/tickets` | Role-scoped list and client-only ticket creation without billing or attachment fields. |
+| `GET` | `/api/v1/tickets/{id}` | Authorized conversation, asset, state and billing-decision history. |
+| `POST` | `/api/v1/tickets/{id}/messages` | Adds a message to an accessible non-closed ticket. |
+| `PATCH` | `/api/v1/admin/tickets/{id}/status` | Applies the explicit administrator-only state transition table. |
+| `POST` | `/api/v1/admin/tickets/{id}/billing-decisions` | Appends an auditable covered/chargeable decision; price is accepted only for chargeable work. |
 | `GET` | `/health`, `/health/ready` | Liveness and PostgreSQL readiness. |
 
 Planned endpoints follow resource-oriented feature groups for tickets, catalog, invoices, PDFs, and payment declarations. Mutation handlers enforce workspace ownership from the server-side session. Billing fields from client requests are never accepted as authoritative. Approval of a payment declaration and marking its invoice paid occur in one database transaction.
@@ -72,7 +77,7 @@ Planned endpoints follow resource-oriented feature groups for tickets, catalog, 
 
 1. **Access and workspace foundation — implemented:** OTP, persona choice, deterministic seed, row isolation, expiry cleanup, Greek dashboard, asset list, same-origin proxy, deployment and CI.
 2. **Assets and service catalog — implemented:** client/admin CRUD rules with one package per asset, catalog constraints and Greek management UI.
-3. **Tickets:** conversation messages, explicit state machine, and administrator-only auditable billing decision. No attachments.
+3. **Tickets — implemented:** conversation messages, explicit state machine, administrator-only auditable billing decisions and no attachments.
 4. **Billing:** structured invoices, deterministic Greek PDF generation, and manual payment declaration review.
 5. **Production hardening:** operational counters and error telemetry without personal data, accessibility and E2E coverage, Render/Vercel production verification.
 

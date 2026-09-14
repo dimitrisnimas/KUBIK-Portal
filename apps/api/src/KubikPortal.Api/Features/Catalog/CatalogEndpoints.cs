@@ -128,6 +128,7 @@ public static partial class CatalogEndpoints
     private static async Task<IResult> UpdateAssetStatusAsync(
         Guid id, AssetStatusRequest request, PortalDbContext db, CancellationToken cancellationToken)
     {
+        if (!Enum.IsDefined(request.Status)) return Invalid("status", "Η κατάσταση δεν είναι έγκυρη.");
         var updated = await db.ManagedAssets.Where(x => x.Id == id)
             .ExecuteUpdateAsync(change => change.SetProperty(x => x.Status, request.Status), cancellationToken);
         return updated == 1 ? Results.NoContent() : Results.NotFound();
@@ -214,6 +215,7 @@ public static partial class CatalogEndpoints
     private static IResult? ValidateAsset(AssetWriteRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length is < 2 or > 160) return Invalid("name", "Το όνομα πρέπει να έχει από 2 έως 160 χαρακτήρες.");
+        if (!Enum.IsDefined(request.AssetType)) return Invalid("assetType", "Ο τύπος έργου δεν είναι έγκυρος.");
         if (!string.IsNullOrWhiteSpace(request.Url) && (!Uri.TryCreate(request.Url.Trim(), UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")))
             return Invalid("url", "Η διεύθυνση πρέπει να είναι έγκυρο URL http ή https.");
         return null;
