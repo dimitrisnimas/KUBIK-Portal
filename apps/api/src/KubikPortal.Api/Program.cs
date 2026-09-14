@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using System.Text.Json.Serialization;
 using System.Text.Json;
+using System.Diagnostics;
 using KubikPortal.Api.Data;
 using KubikPortal.Api.Features.Auth;
 using KubikPortal.Api.Features.Catalog;
@@ -23,8 +24,23 @@ builder.Services.AddScoped<WorkspaceContext>();
 builder.Services.AddScoped<IWorkspaceContext>(sp => sp.GetRequiredService<WorkspaceContext>());
 builder.Services.AddDbContext<PortalDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-builder.Services.Configure<DemoOptions>(builder.Configuration.GetSection(DemoOptions.SectionName));
-builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
+builder.Services.AddOptions<DemoOptions>()
+    .Bind(builder.Configuration.GetSection(DemoOptions.SectionName))
+    .Validate(options => options.WorkspaceLifetimeMinutes is >= 5 and <= 240, "Το demo workspace lifetime πρέπει να είναι από 5 έως 240 λεπτά.")
+    .Validate(options => options.OtpLifetimeMinutes is >= 2 and <= 30, "Το OTP lifetime πρέπει να είναι από 2 έως 30 λεπτά.")
+    .Validate(options => options.OtpResendSeconds is >= 15 and <= 600, "Το OTP resend interval πρέπει να είναι από 15 έως 600 δευτερόλεπτα.")
+    .Validate(options => options.CleanupIntervalMinutes is >= 1 and <= 60, "Το cleanup interval πρέπει να είναι από 1 έως 60 λεπτά.")
+    .ValidateOnStart();
+builder.Services.AddOptions<SmtpOptions>()
+    .Bind(builder.Configuration.GetSection(SmtpOptions.SectionName))
+    .Validate(options => !builder.Environment.IsProduction() ||
+        (!string.IsNullOrWhiteSpace(options.Host) && !string.IsNullOrWhiteSpace(options.FromAddress)),
+        "Τα Smtp:Host και Smtp:FromAddress είναι υποχρεωτικά στην παραγωγή.")
+    .Validate(options => string.IsNullOrWhiteSpace(options.Username) || !string.IsNullOrWhiteSpace(options.Password),
+        "Το Smtp:Password είναι υποχρεωτικό όταν έχει οριστεί Smtp:Username.")
+    .ValidateOnStart();
+if (builder.Environment.IsProduction() && (builder.Configuration["Demo:OtpHashSecret"]?.Length ?? 0) < 32)
+    throw new InvalidOperationException("Το Demo:OtpHashSecret πρέπει να έχει τουλάχιστον 32 χαρακτήρες στην παραγωγή.");
 builder.Services.AddSingleton<OtpCodeProtector>();
 builder.Services.AddScoped<OtpDeliveryService>();
 builder.Services.AddScoped<DemoWorkspaceFactory>();
@@ -71,7 +87,10 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0
         }));
 });
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+{
+    context.ProblemDetails.Extensions["traceId"] = Activity.Current?.TraceId.ToString() ?? context.HttpContext.TraceIdentifier;
+});
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
@@ -81,12 +100,19 @@ builder.Services.AddOpenApi();
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+var forwardedHeaders = new ForwardedHeadersOptions
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 1
+};
+forwardedHeaders.KnownIPNetworks.Clear();
+forwardedHeaders.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeaders);
+if (!app.Environment.IsDevelopment()) app.UseHsts();
+app.UseMiddleware<RequestDiagnosticsMiddleware>();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseHttpsRedirection();
 app.UseRateLimiter();
 app.UseAuthentication();

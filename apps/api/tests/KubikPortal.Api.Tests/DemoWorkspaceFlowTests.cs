@@ -64,6 +64,26 @@ public sealed class DemoWorkspaceFlowTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task OperationalHeadersArePresentWithoutCachingPrivateApiResponses()
+    {
+        var client = CreateClient();
+        using var healthRequest = new HttpRequestMessage(HttpMethod.Get, "/health");
+        healthRequest.Headers.Add("X-Correlation-ID", "ci-health-check-01");
+        var health = await client.SendAsync(healthRequest);
+
+        health.EnsureSuccessStatusCode();
+        Assert.Equal("ci-health-check-01", health.Headers.GetValues("X-Correlation-ID").Single());
+        Assert.Equal("nosniff", health.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal("DENY", health.Headers.GetValues("X-Frame-Options").Single());
+        Assert.Equal("no-referrer", health.Headers.GetValues("Referrer-Policy").Single());
+
+        var privateResponse = await client.GetAsync("/api/v1/session");
+        Assert.Equal(HttpStatusCode.Unauthorized, privateResponse.StatusCode);
+        Assert.True(privateResponse.Headers.CacheControl?.NoStore);
+        Assert.True(privateResponse.Headers.Contains("X-Correlation-ID"));
+    }
+
+    [Fact]
     public async Task ClientAndAdministratorCatalogPermissionsAreEnforced()
     {
         var client = CreateClient();

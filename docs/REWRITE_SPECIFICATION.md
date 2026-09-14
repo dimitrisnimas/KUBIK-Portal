@@ -86,6 +86,6 @@ Mutation handlers enforce workspace ownership from the server-side session. Bill
 2. **Assets and service catalog — implemented:** client/admin CRUD rules with one package per asset, catalog constraints and Greek management UI.
 3. **Tickets — implemented:** conversation messages, explicit state machine, administrator-only auditable billing decisions and no attachments.
 4. **Billing — implemented:** structured invoices, deterministic Greek PDF generation, and manual payment declaration review.
-5. **Production hardening:** operational counters and error telemetry without personal data, accessibility and E2E coverage, Render/Vercel production verification.
+5. **Production hardening — implemented locally:** structured JSON production logs, correlation/trace IDs, request duration/status metrics, security and private-response cache headers, Greek error boundaries, keyboard skip navigation and CI assertions. Απομένει η επαλήθευση του πραγματικού Render/Vercel deployment.
 
 No blocking product or architecture questions remain. Implementation details with multiple valid solutions are resolved within these boundaries without expanding scope.

@@ -39,3 +39,5 @@ npm run build:web
 Το backend αναπτύσσεται στο Render από το `render.yaml` και το frontend στο Vercel με root directory `apps/web`. Στο Vercel ορίστε `API_ORIGIN` στο origin του Render service. Το `next.config.ts` προωθεί το browser `/api/*` στο backend, ώστε το authentication cookie να παραμένει same-origin. Δεν υπάρχει staging environment.
 
 Το `Demo__Enabled=true` είναι απαραίτητο για την επιλογή προσομοιωμένης persona. Τα SMTP secrets ορίζονται αποκλειστικά ως environment variables. Δεν υπάρχουν analytics tags, object storage ή εξωτερικές παραγωγικές συνδέσεις KUBIK.
+
+Στην παραγωγή το API εκπέμπει JSON console logs με correlation ID, route template, status και διάρκεια, καθώς και built-in `System.Diagnostics.Metrics` counters/histogram για HTTP requests. Δεν καταγράφονται query strings, OTPs, email περιεχόμενο ή στοιχεία persona. Τα API responses είναι `no-store` και τόσο το Render API όσο και το Vercel frontend επιστρέφουν security headers.

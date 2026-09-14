@@ -44,9 +44,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
   return <SessionContext.Provider value={session}>
     <div className="portal-frame">
-      <button className="mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Άνοιγμα μενού">☰</button>
+      <a className="skip-link" href="#portal-content">Μετάβαση στο κύριο περιεχόμενο</a>
+      <button className="mobile-menu" onClick={() => setMenuOpen(true)} aria-label="Άνοιγμα μενού" aria-expanded={menuOpen} aria-controls="portal-sidebar">☰</button>
       {menuOpen && <button className="menu-backdrop" onClick={() => setMenuOpen(false)} aria-label="Κλείσιμο μενού" />}
-      <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
+      <aside id="portal-sidebar" className={`sidebar ${menuOpen ? "open" : ""}`}>
         <div className="sidebar-top">
           <Link className="brand" href="/portal"><span className="brand-mark">K</span><span>KUBIK</span></Link>
           <span className="persona-badge">{isAdmin ? "Demo Διαχειριστή" : "Demo Πελάτη"}</span>
@@ -55,7 +56,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           <p className="nav-label">ΧΩΡΟΣ ΕΡΓΑΣΙΑΣ</p>
           {links.map((link) => {
             const active = link.href === "/portal" ? pathname === link.href : pathname.startsWith(link.href);
-            return <Link key={link.href} href={link.href} className={`nav-link ${active ? "active" : ""}`} onClick={() => setMenuOpen(false)}>
+            return <Link key={link.href} href={link.href} className={`nav-link ${active ? "active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => setMenuOpen(false)}>
               <Icon name={link.icon} />{link.label}
             </Link>;
           })}
@@ -66,7 +67,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           <button className="icon-button" onClick={logout} title="Αποσύνδεση" aria-label="Αποσύνδεση"><Icon name="logout" /></button>
         </div>
       </aside>
-      <main className="portal-main">
+      <main id="portal-content" className="portal-main" tabIndex={-1}>
         <div className="demo-banner"><span>●</span> Προβάλλετε προσομοιωμένο περιβάλλον {isAdmin ? "διαχειριστή" : "πελάτη"}. Τα δεδομένα είναι προσωρινά.</div>
         {error && <p className="error-message" role="alert">{error}</p>}
         {children}
