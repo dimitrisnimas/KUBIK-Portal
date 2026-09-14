@@ -149,6 +149,61 @@ public sealed class DemoWorkspaceFlowTests : IAsyncLifetime
         Assert.True(detail.GetProperty("billingDecisions").GetArrayLength() >= 2);
     }
 
+    [Fact]
+    public async Task PaymentDeclarationsRequireAdminReviewBeforeAnInvoiceBecomesPaid()
+    {
+        var client = CreateClient();
+        var clientSession = await VerifyAsync(client, "billing-client@example.com", "Client");
+        var clientInvoices = await client.GetFromJsonAsync<JsonElement[]>("/api/v1/invoices");
+        var overdue = clientInvoices!.Single(x => x.GetProperty("number").GetString() == "KINV-2026-002");
+        var overdueId = overdue.GetProperty("id").GetGuid();
+
+        var rejectedBillingField = await SendWithCsrfAsync(client, HttpMethod.Post,
+            $"/api/v1/invoices/{overdueId}/payment-declarations", clientSession.CsrfToken,
+            new { reference = "TRX-CLIENT-001", note = "Δοκιμή", status = "Approved" });
+        Assert.Equal(HttpStatusCode.BadRequest, rejectedBillingField.StatusCode);
+
+        var submitted = await SendWithCsrfAsync(client, HttpMethod.Post,
+            $"/api/v1/invoices/{overdueId}/payment-declarations", clientSession.CsrfToken,
+            new { reference = "TRX-CLIENT-001", note = "Μεταφορά από demo λογαριασμό." });
+        Assert.Equal(HttpStatusCode.Created, submitted.StatusCode);
+        var stillUnpaid = await client.GetFromJsonAsync<JsonElement>($"/api/v1/invoices/{overdueId}");
+        Assert.Equal("Unpaid", stillUnpaid.GetProperty("status").GetString());
+        Assert.Contains(stillUnpaid.GetProperty("paymentDeclarations").EnumerateArray(),
+            x => x.GetProperty("status").GetString() == "PendingReview");
+        Assert.Equal(HttpStatusCode.Conflict, (await SendWithCsrfAsync(client, HttpMethod.Post,
+            $"/api/v1/invoices/{overdueId}/payment-declarations", clientSession.CsrfToken,
+            new { reference = "TRX-CLIENT-002", note = (string?)null })).StatusCode);
+
+        var administrator = CreateClient();
+        var adminSession = await VerifyAsync(administrator, "billing-admin@example.com", "Administrator");
+        var pending = await administrator.GetFromJsonAsync<JsonElement[]>("/api/v1/admin/payment-declarations?status=PendingReview");
+        var declaration = Assert.Single(pending!);
+        var declarationId = declaration.GetProperty("id").GetGuid();
+        var invoiceId = declaration.GetProperty("invoiceId").GetGuid();
+
+        var pdf = await administrator.GetAsync($"/api/v1/invoices/{invoiceId}/pdf");
+        pdf.EnsureSuccessStatusCode();
+        Assert.Equal("application/pdf", pdf.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("%PDF-", System.Text.Encoding.ASCII.GetString((await pdf.Content.ReadAsByteArrayAsync())[..5]));
+
+        var approved = await SendWithCsrfAsync(administrator, HttpMethod.Post,
+            $"/api/v1/admin/payment-declarations/{declarationId}/review", adminSession.CsrfToken,
+            new { status = "Approved", reviewNote = "Η αναφορά επιβεβαιώθηκε." });
+        Assert.Equal(HttpStatusCode.NoContent, approved.StatusCode);
+        var paidInvoice = await administrator.GetFromJsonAsync<JsonElement>($"/api/v1/invoices/{invoiceId}");
+        Assert.Equal("Paid", paidInvoice.GetProperty("status").GetString());
+        Assert.NotEqual(JsonValueKind.Null, paidInvoice.GetProperty("paidAt").ValueKind);
+        var reviewed = paidInvoice.GetProperty("paymentDeclarations")[0];
+        Assert.Equal("Approved", reviewed.GetProperty("status").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(reviewed.GetProperty("reviewerName").GetString()));
+
+        var replay = await SendWithCsrfAsync(administrator, HttpMethod.Post,
+            $"/api/v1/admin/payment-declarations/{declarationId}/review", adminSession.CsrfToken,
+            new { status = "Rejected", reviewNote = "Καθυστερημένη αλλαγή." });
+        Assert.Equal(HttpStatusCode.Conflict, replay.StatusCode);
+    }
+
     private HttpClient CreateClient() => _factory.CreateClient(new WebApplicationFactoryClientOptions
     {
         BaseAddress = new Uri("https://localhost"),

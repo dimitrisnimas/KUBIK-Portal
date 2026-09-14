@@ -2,7 +2,7 @@
 
 Δημόσιο portfolio/demo εφαρμογής client portal για ψηφιακό agency. Η νέα υλοποίηση χρησιμοποιεί ASP.NET Core 10, EF Core, PostgreSQL και Next.js 16. Κάθε επαληθευμένη είσοδος δημιουργεί νέο απομονωμένο workspace με deterministic seed data, το οποίο διαγράφεται στην αποσύνδεση ή στη λήξη της συνεδρίας.
 
-Η τρέχουσα υλοποίηση καλύπτει OTP πρόσβαση, client/administrator demo personas, role-aware dashboard, διαχείριση έργων, πλήρη κατάλογο categories/packages και support/change-request tickets. Οι client mutations περιορίζονται στα resources της τρέχουσας persona. Οι αλλαγές καταλόγου, κατάστασης ticket και χρέωσης απαιτούν administrator role και CSRF token. Οι billing decisions διατηρούν append-only ιστορικό και ο client δεν στέλνει authoritative billing fields.
+Η τρέχουσα υλοποίηση καλύπτει OTP πρόσβαση, client/administrator demo personas, role-aware dashboard, διαχείριση έργων, κατάλογο categories/packages, support/change-request tickets και δομημένη τιμολόγηση. Οι client mutations περιορίζονται στα resources της τρέχουσας persona. Οι αλλαγές καταλόγου, κατάστασης ticket, χρέωσης και αξιολόγησης πληρωμών απαιτούν administrator role και CSRF token. Τα invoice PDFs παράγονται κατά απαίτηση από τα δομημένα δεδομένα, με embedded ελληνική γραμματοσειρά, χωρίς object storage. Η δήλωση τραπεζικής μεταφοράς δεν εξοφλεί το τιμολόγιο πριν εγκριθεί από administrator.
 
 ## Δομή
 

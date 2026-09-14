@@ -39,6 +39,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     { href: "/portal/assets", label: "Έργα", icon: "briefcase" },
     { href: "/portal/services", label: "Πακέτα υπηρεσιών", icon: "layers" },
     { href: "/portal/tickets", label: "Αιτήματα", icon: "message" },
+    { href: "/portal/billing", label: "Τιμολόγηση", icon: "receipt" },
   ];
 
   return <SessionContext.Provider value={session}>
@@ -80,6 +81,7 @@ function Icon({ name }: { name: string }) {
     briefcase: <><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18"/></>,
     layers: <><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 12 10 5 10-5M2 17l10 5 10-5"/></>,
     message: <><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z"/><path d="M8 9h8M8 13h5"/></>,
+    receipt: <><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2Z"/><path d="M9 7h6M9 11h6M9 15h4"/></>,
     logout: <><path d="M10 17l5-5-5-5M15 12H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></>,
   };
   return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{paths[name]}</svg>;

@@ -8,6 +8,8 @@ public enum TicketKind { Support, ChangeRequest, Bug, Feature }
 public enum TicketPriority { Normal, High, Urgent }
 public enum TicketStatus { New, InProgress, AwaitingClient, Resolved, Closed }
 public enum BillingDecisionKind { Covered, Chargeable }
+public enum InvoiceStatus { Unpaid, Paid }
+public enum PaymentDeclarationStatus { PendingReview, Approved, Rejected }
 
 public sealed class DemoWorkspace
 {
@@ -114,6 +116,51 @@ public sealed class TicketBillingDecision : WorkspaceEntity
     public Guid ReviewerPersonaId { get; set; }
     public DemoPersona ReviewerPersona { get; set; } = null!;
     public DateTimeOffset DecidedAt { get; set; }
+}
+
+public sealed class Invoice : WorkspaceEntity
+{
+    public Guid ClientPersonaId { get; set; }
+    public DemoPersona ClientPersona { get; set; } = null!;
+    public required string Number { get; set; }
+    public DateOnly IssueDate { get; set; }
+    public DateOnly DueDate { get; set; }
+    public InvoiceStatus Status { get; set; }
+    public DateTimeOffset? PaidAt { get; set; }
+    public decimal Subtotal { get; set; }
+    public decimal VatRate { get; set; }
+    public decimal VatAmount { get; set; }
+    public decimal Total { get; set; }
+    public required string Currency { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public List<InvoiceLine> Lines { get; set; } = [];
+    public List<PaymentDeclaration> PaymentDeclarations { get; set; } = [];
+}
+
+public sealed class InvoiceLine : WorkspaceEntity
+{
+    public Guid InvoiceId { get; set; }
+    public Invoice Invoice { get; set; } = null!;
+    public int Position { get; set; }
+    public required string Description { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal LineTotal { get; set; }
+}
+
+public sealed class PaymentDeclaration : WorkspaceEntity
+{
+    public Guid InvoiceId { get; set; }
+    public Invoice Invoice { get; set; } = null!;
+    public required string SubmittedReference { get; set; }
+    public string? SubmittedNote { get; set; }
+    public DateTimeOffset SubmittedAt { get; set; }
+    public PaymentDeclarationStatus Status { get; set; }
+    public DateTimeOffset? ReviewedAt { get; set; }
+    public Guid? ReviewerPersonaId { get; set; }
+    public DemoPersona? ReviewerPersona { get; set; }
+    public string? ReviewNote { get; set; }
 }
 
 public sealed class OtpChallenge

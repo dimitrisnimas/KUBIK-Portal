@@ -6,6 +6,7 @@ using KubikPortal.Api.Features.Auth;
 using KubikPortal.Api.Features.Catalog;
 using KubikPortal.Api.Features.Dashboard;
 using KubikPortal.Api.Features.Tickets;
+using KubikPortal.Api.Features.Billing;
 using KubikPortal.Api.Infrastructure;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -27,6 +28,7 @@ builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOpt
 builder.Services.AddSingleton<OtpCodeProtector>();
 builder.Services.AddScoped<OtpDeliveryService>();
 builder.Services.AddScoped<DemoWorkspaceFactory>();
+builder.Services.AddSingleton<InvoicePdfGenerator>();
 builder.Services.AddHostedService<ExpiredWorkspaceCleanupService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -107,6 +109,7 @@ api.MapAuthEndpoints();
 api.MapDashboardEndpoints();
 api.MapCatalogEndpoints();
 api.MapTicketEndpoints();
+api.MapBillingEndpoints();
 
 await app.Services.ApplyDatabaseMigrationsAsync();
 app.Run();

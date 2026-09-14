@@ -90,6 +90,18 @@ public sealed class DemoWorkspaceFactory(
             Decision(workspaceId, speedTicket.Id, administrator.Id, "decision:1002:1", BillingDecisionKind.Covered, null, "Καλύπτεται από το ενεργό πακέτο υποστήριξης.", now.AddDays(-2)),
             Decision(workspaceId, landingTicket.Id, administrator.Id, "decision:1003:1", BillingDecisionKind.Chargeable, 480m, "Εκτίμηση για σχεδιασμό και ανάπτυξη landing page.", now.AddHours(-18)));
 
+        var today = DateOnly.FromDateTime(now.UtcDateTime);
+        var currentInvoice = InvoiceRecord(workspaceId, client.Id, "KINV-2026-001", today.AddDays(-15), today.AddDays(15), InvoiceStatus.Unpaid, null,
+            "Μηνιαίες υπηρεσίες Σεπτεμβρίου", [("Web Care", 1m, 89m), ("Digital Growth", 1m, 249m)]);
+        var overdueInvoice = InvoiceRecord(workspaceId, client.Id, "KINV-2026-002", today.AddDays(-50), today.AddDays(-20), InvoiceStatus.Unpaid, null,
+            "Υπηρεσίες ηλεκτρονικού καταστήματος", [("E-commerce Plus", 1m, 179m), ("Βελτιστοποίηση καταλόγου", 2m, 45m)]);
+        var paidInvoice = InvoiceRecord(workspaceId, client.Id, "KINV-2026-003", today.AddDays(-80), today.AddDays(-50), InvoiceStatus.Paid, now.AddDays(-48),
+            "Ολοκληρωμένη περίοδος υπηρεσιών", [("Web Care", 1m, 89m)]);
+        db.Invoices.AddRange(currentInvoice, overdueInvoice, paidInvoice);
+        db.PaymentDeclarations.AddRange(
+            PaymentRecord(workspaceId, currentInvoice.Id, "payment:001", "TRX-2026-0914-4582", "Μεταφορά από εταιρικό λογαριασμό.", PaymentDeclarationStatus.PendingReview, now.AddHours(-5), null, null, null),
+            PaymentRecord(workspaceId, overdueInvoice.Id, "payment:002", "TRX-INVALID-104", null, PaymentDeclarationStatus.Rejected, now.AddDays(-4), now.AddDays(-3), administrator.Id, "Δεν εντοπίστηκε η συγκεκριμένη αναφορά."));
+
         var selectedPersona = selectedRole == DemoRole.Administrator ? administrator : client;
         var session = new DemoSession
         {
@@ -147,6 +159,39 @@ public sealed class DemoWorkspaceFactory(
     {
         Id = StableId(workspaceId, key), WorkspaceId = workspaceId, TicketId = ticketId,
         ReviewerPersonaId = reviewerId, Decision = decision, Price = price, Currency = "EUR", Note = note, DecidedAt = decidedAt
+    };
+
+    private static Invoice InvoiceRecord(
+        Guid workspaceId, Guid clientId, string number, DateOnly issueDate, DateOnly dueDate,
+        InvoiceStatus status, DateTimeOffset? paidAt, string notes, IReadOnlyList<(string Description, decimal Quantity, decimal UnitPrice)> lines)
+    {
+        var invoiceId = StableId(workspaceId, $"invoice:{number}");
+        var subtotal = lines.Sum(x => decimal.Round(x.Quantity * x.UnitPrice, 2, MidpointRounding.AwayFromZero));
+        var vatAmount = decimal.Round(subtotal * 0.24m, 2, MidpointRounding.AwayFromZero);
+        return new Invoice
+        {
+            Id = invoiceId, WorkspaceId = workspaceId, ClientPersonaId = clientId, Number = number,
+            IssueDate = issueDate, DueDate = dueDate, Status = status, PaidAt = paidAt,
+            Subtotal = subtotal, VatRate = 24m, VatAmount = vatAmount, Total = subtotal + vatAmount,
+            Currency = "EUR", Notes = notes, CreatedAt = issueDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+            Lines = lines.Select((line, index) => new InvoiceLine
+            {
+                Id = StableId(workspaceId, $"invoice-line:{number}:{index + 1}"), WorkspaceId = workspaceId,
+                InvoiceId = invoiceId, Position = index + 1, Description = line.Description,
+                Quantity = line.Quantity, UnitPrice = line.UnitPrice,
+                LineTotal = decimal.Round(line.Quantity * line.UnitPrice, 2, MidpointRounding.AwayFromZero)
+            }).ToList()
+        };
+    }
+
+    private static PaymentDeclaration PaymentRecord(
+        Guid workspaceId, Guid invoiceId, string key, string reference, string? note,
+        PaymentDeclarationStatus status, DateTimeOffset submittedAt, DateTimeOffset? reviewedAt,
+        Guid? reviewerId, string? reviewNote) => new()
+    {
+        Id = StableId(workspaceId, key), WorkspaceId = workspaceId, InvoiceId = invoiceId,
+        SubmittedReference = reference, SubmittedNote = note, SubmittedAt = submittedAt, Status = status,
+        ReviewedAt = reviewedAt, ReviewerPersonaId = reviewerId, ReviewNote = reviewNote
     };
 
     private static Guid StableId(Guid workspaceId, string key)

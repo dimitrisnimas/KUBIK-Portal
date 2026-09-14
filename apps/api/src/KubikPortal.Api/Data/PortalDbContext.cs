@@ -15,6 +15,9 @@ public sealed class PortalDbContext(DbContextOptions<PortalDbContext> options, I
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
     public DbSet<TicketMessage> TicketMessages => Set<TicketMessage>();
     public DbSet<TicketBillingDecision> TicketBillingDecisions => Set<TicketBillingDecision>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+    public DbSet<PaymentDeclaration> PaymentDeclarations => Set<PaymentDeclaration>();
     public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
     public DbSet<DemoSession> DemoSessions => Set<DemoSession>();
 
@@ -52,6 +55,9 @@ public sealed class PortalDbContext(DbContextOptions<PortalDbContext> options, I
         ConfigureWorkspaceEntity<SupportTicket>(modelBuilder);
         ConfigureWorkspaceEntity<TicketMessage>(modelBuilder);
         ConfigureWorkspaceEntity<TicketBillingDecision>(modelBuilder);
+        ConfigureWorkspaceEntity<Invoice>(modelBuilder);
+        ConfigureWorkspaceEntity<InvoiceLine>(modelBuilder);
+        ConfigureWorkspaceEntity<PaymentDeclaration>(modelBuilder);
 
         modelBuilder.Entity<DemoPersona>(entity =>
         {
@@ -117,6 +123,40 @@ public sealed class PortalDbContext(DbContextOptions<PortalDbContext> options, I
             entity.Property(x => x.Note).HasMaxLength(500);
             entity.HasIndex(x => new { x.WorkspaceId, x.TicketId, x.DecidedAt });
             entity.HasOne(x => x.Ticket).WithMany(x => x.BillingDecisions).HasForeignKey(x => x.TicketId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.ReviewerPersona).WithMany().HasForeignKey(x => x.ReviewerPersonaId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<Invoice>(entity =>
+        {
+            entity.Property(x => x.Number).HasMaxLength(40);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.Subtotal).HasPrecision(14, 2);
+            entity.Property(x => x.VatRate).HasPrecision(5, 2);
+            entity.Property(x => x.VatAmount).HasPrecision(14, 2);
+            entity.Property(x => x.Total).HasPrecision(14, 2);
+            entity.Property(x => x.Currency).HasMaxLength(3);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasIndex(x => new { x.WorkspaceId, x.Number }).IsUnique();
+            entity.HasIndex(x => new { x.WorkspaceId, x.DueDate });
+            entity.HasOne(x => x.ClientPersona).WithMany().HasForeignKey(x => x.ClientPersonaId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<InvoiceLine>(entity =>
+        {
+            entity.Property(x => x.Description).HasMaxLength(100);
+            entity.Property(x => x.Quantity).HasPrecision(10, 2);
+            entity.Property(x => x.UnitPrice).HasPrecision(14, 2);
+            entity.Property(x => x.LineTotal).HasPrecision(14, 2);
+            entity.HasIndex(x => new { x.WorkspaceId, x.InvoiceId, x.Position }).IsUnique();
+            entity.HasOne(x => x.Invoice).WithMany(x => x.Lines).HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<PaymentDeclaration>(entity =>
+        {
+            entity.Property(x => x.SubmittedReference).HasMaxLength(500);
+            entity.Property(x => x.SubmittedNote).HasMaxLength(1000);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.ReviewNote).HasMaxLength(1000);
+            entity.HasIndex(x => new { x.WorkspaceId, x.Status, x.SubmittedAt });
+            entity.HasIndex(x => x.InvoiceId).IsUnique().HasFilter("\"Status\" = 'PendingReview'");
+            entity.HasOne(x => x.Invoice).WithMany(x => x.PaymentDeclarations).HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.ReviewerPersona).WithMany().HasForeignKey(x => x.ReviewerPersonaId).OnDelete(DeleteBehavior.Restrict);
         });
     }

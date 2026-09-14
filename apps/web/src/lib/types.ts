@@ -93,3 +93,52 @@ export type TicketDetail = Omit<TicketSummary, "updatedAt" | "messageCount" | "b
   messages: TicketMessage[];
   billingDecisions: BillingDecision[];
 };
+
+export type PaymentDeclaration = {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  invoiceTotal: number;
+  clientName: string;
+  reference: string;
+  submittedNote: string | null;
+  submittedAt: string;
+  status: "PendingReview" | "Approved" | "Rejected";
+  statusLabel: string;
+  reviewedAt: string | null;
+  reviewerName: string | null;
+  reviewNote: string | null;
+};
+
+export type InvoiceSummary = {
+  id: string;
+  number: string;
+  issueDate: string;
+  dueDate: string;
+  status: "Unpaid" | "Paid";
+  statusLabel: string;
+  total: number;
+  currency: string;
+  isOverdue: boolean;
+  paymentStatus: PaymentDeclaration["status"] | null;
+};
+
+export type InvoiceLine = {
+  id: string;
+  position: number;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+export type InvoiceDetail = Omit<InvoiceSummary, "isOverdue" | "paymentStatus"> & {
+  paidAt: string | null;
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  notes: string | null;
+  clientName: string;
+  lines: InvoiceLine[];
+  paymentDeclarations: PaymentDeclaration[];
+};

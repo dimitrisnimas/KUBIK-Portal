@@ -131,6 +131,123 @@ namespace KubikPortal.Api.Data.Migrations
                     b.ToTable("DemoWorkspaces", "portal");
                 });
 
+            modelBuilder.Entity("KubikPortal.Api.Domain.Invoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientPersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("IssueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("VatAmount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<decimal>("VatRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientPersonaId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "DueDate");
+
+                    b.HasIndex("WorkspaceId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("Invoices", "portal");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.InvoiceLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("LineTotal")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "InvoiceId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("InvoiceLines", "portal");
+                });
+
             modelBuilder.Entity("KubikPortal.Api.Domain.ManagedAsset", b =>
                 {
                     b.Property<Guid>("Id")
@@ -217,6 +334,60 @@ namespace KubikPortal.Api.Data.Migrations
                     b.HasIndex("Email", "CreatedAt");
 
                     b.ToTable("OtpChallenges", "portal");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.PaymentDeclaration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewerPersonaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SubmittedNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("SubmittedReference")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'PendingReview'");
+
+                    b.HasIndex("ReviewerPersonaId");
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "Status", "SubmittedAt");
+
+                    b.ToTable("PaymentDeclarations", "portal");
                 });
 
             modelBuilder.Entity("KubikPortal.Api.Domain.ServiceCategory", b =>
@@ -506,6 +677,44 @@ namespace KubikPortal.Api.Data.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("KubikPortal.Api.Domain.Invoice", b =>
+                {
+                    b.HasOne("KubikPortal.Api.Domain.DemoPersona", "ClientPersona")
+                        .WithMany()
+                        .HasForeignKey("ClientPersonaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("KubikPortal.Api.Domain.DemoWorkspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClientPersona");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.InvoiceLine", b =>
+                {
+                    b.HasOne("KubikPortal.Api.Domain.Invoice", "Invoice")
+                        .WithMany("Lines")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KubikPortal.Api.Domain.DemoWorkspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("KubikPortal.Api.Domain.ManagedAsset", b =>
                 {
                     b.HasOne("KubikPortal.Api.Domain.DemoPersona", "OwnerPersona")
@@ -528,6 +737,32 @@ namespace KubikPortal.Api.Data.Migrations
                     b.Navigation("OwnerPersona");
 
                     b.Navigation("ServicePackage");
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.PaymentDeclaration", b =>
+                {
+                    b.HasOne("KubikPortal.Api.Domain.Invoice", "Invoice")
+                        .WithMany("PaymentDeclarations")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KubikPortal.Api.Domain.DemoPersona", "ReviewerPersona")
+                        .WithMany()
+                        .HasForeignKey("ReviewerPersonaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("KubikPortal.Api.Domain.DemoWorkspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("ReviewerPersona");
 
                     b.Navigation("Workspace");
                 });
@@ -659,6 +894,13 @@ namespace KubikPortal.Api.Data.Migrations
                     b.Navigation("Ticket");
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("KubikPortal.Api.Domain.Invoice", b =>
+                {
+                    b.Navigation("Lines");
+
+                    b.Navigation("PaymentDeclarations");
                 });
 
             modelBuilder.Entity("KubikPortal.Api.Domain.ServicePackage", b =>

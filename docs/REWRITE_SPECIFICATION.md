@@ -1,6 +1,6 @@
 # KUBIK Portal rewrite specification
 
-**Status:** implementation-ready; access/workspace, assets/catalog and tickets vertical slices implemented.
+**Status:** implementation-ready; access/workspace, assets/catalog, tickets and billing vertical slices implemented.
 **Product mode:** public portfolio/demo application.  
 **Environments:** local development and production on Vercel + Render. There is no staging environment.
 
@@ -20,10 +20,10 @@ The system is a feature-oriented modular monolith: ASP.NET Core 10 and EF Core o
 | `ManagedAsset` | Client-owned digital asset with a distinct asset type and zero or one service package. |
 | `ServiceCategory` | Classification for the service catalog; deliberately separate from asset type. |
 | `ServicePackage` | Current package offering. No lifecycle, scheduling, or subscription history exists in v1. |
-| `SupportTicket` | Future slice: request and conversation whose billing decision belongs only to an administrator. |
-| `TicketBillingDecision` | Future slice: auditable covered/chargeable decision with price only for chargeable work. |
-| `Invoice` | Future slice: structured billing data used to generate a deterministic Greek PDF on demand. |
-| `PaymentDeclaration` | Future slice: manual bank-transfer simulation with `PendingReview`, `Approved`, `Rejected`. |
+| `SupportTicket` | Request and conversation whose billing decision belongs only to an administrator. |
+| `TicketBillingDecision` | Auditable covered/chargeable decision with price only for chargeable work. |
+| `Invoice` | Structured billing data used to generate a deterministic Greek PDF on demand. |
+| `PaymentDeclaration` | Manual bank-transfer simulation with `PendingReview`, `Approved`, `Rejected`. |
 
 Every workspace-owned table has `workspace_id`. EF query filters apply the current workspace and database foreign keys cascade from `DemoWorkspace`. Assets and service categories remain separate concepts because they classify different things; introducing a shared abstraction would add coupling without a current rule that needs it.
 
@@ -36,11 +36,11 @@ Attachments are absent from v1. A future attachment entity belongs to a ticket m
 | Email OTP and persona selection | Keep; create a new workspace after every successful verification. |
 | Client/admin dashboard and managed assets | Keep and modernize in Greek. |
 | Service catalog and one package per asset | Keep with a simple direct relationship. |
-| Ticket conversation | Implement in the next slice. |
+| Ticket conversation | Implemented with append-only messages and an explicit state machine. |
 | Client-selected ticket chargeability | Remove; only administrators can make the decision. |
 | Ticket attachments and object storage | Remove from v1. |
-| Structured invoices and generated PDF | Implement later in v1; never upload or store an authoritative PDF. |
-| Bank-transfer declaration | Implement later in v1 with explicit review states; approval alone pays the invoice. |
+| Structured invoices and generated PDF | Implemented; no authoritative PDF is uploaded or stored. |
+| Bank-transfer declaration | Implemented with explicit review states; approval alone pays the invoice. |
 | Editable email templates and queue worker | Remove; use typed, version-controlled source templates and direct bounded delivery. |
 | Accounts, passwords, collaborators, wallet | Remove. |
 | Subscription history, upgrades, downgrades, cancellation | Remove. |
@@ -69,16 +69,23 @@ Implemented endpoints:
 | `POST` | `/api/v1/tickets/{id}/messages` | Adds a message to an accessible non-closed ticket. |
 | `PATCH` | `/api/v1/admin/tickets/{id}/status` | Applies the explicit administrator-only state transition table. |
 | `POST` | `/api/v1/admin/tickets/{id}/billing-decisions` | Appends an auditable covered/chargeable decision; price is accepted only for chargeable work. |
+| `GET` | `/api/v1/invoices` | Returns role-scoped structured invoice summaries and their latest declaration state. |
+| `GET` | `/api/v1/invoices/{id}` | Returns authorized line items, server totals and payment-declaration history. |
+| `GET` | `/api/v1/invoices/{id}/pdf` | Generates and returns the authorized Greek PDF directly from invoice data. |
+| `POST` | `/api/v1/invoices/{id}/payment-declarations` | Client-only declaration; leaves the invoice unpaid while review is pending. |
+| `POST` | `/api/v1/admin/invoices` | Creates an invoice and calculates line totals, 24% VAT and final total on the server. |
+| `GET` | `/api/v1/admin/payment-declarations` | Returns the administrator review queue with optional status filter. |
+| `POST` | `/api/v1/admin/payment-declarations/{id}/review` | Atomically records approval/rejection and pays the invoice only on approval. |
 | `GET` | `/health`, `/health/ready` | Liveness and PostgreSQL readiness. |
 
-Planned endpoints follow resource-oriented feature groups for tickets, catalog, invoices, PDFs, and payment declarations. Mutation handlers enforce workspace ownership from the server-side session. Billing fields from client requests are never accepted as authoritative. Approval of a payment declaration and marking its invoice paid occur in one database transaction.
+Mutation handlers enforce workspace ownership from the server-side session. Billing fields from client requests are never accepted as authoritative. Approval of a payment declaration and marking its invoice paid occur in one database transaction.
 
 ## Roadmap
 
 1. **Access and workspace foundation — implemented:** OTP, persona choice, deterministic seed, row isolation, expiry cleanup, Greek dashboard, asset list, same-origin proxy, deployment and CI.
 2. **Assets and service catalog — implemented:** client/admin CRUD rules with one package per asset, catalog constraints and Greek management UI.
 3. **Tickets — implemented:** conversation messages, explicit state machine, administrator-only auditable billing decisions and no attachments.
-4. **Billing:** structured invoices, deterministic Greek PDF generation, and manual payment declaration review.
+4. **Billing — implemented:** structured invoices, deterministic Greek PDF generation, and manual payment declaration review.
 5. **Production hardening:** operational counters and error telemetry without personal data, accessibility and E2E coverage, Render/Vercel production verification.
 
 No blocking product or architecture questions remain. Implementation details with multiple valid solutions are resolved within these boundaries without expanding scope.
