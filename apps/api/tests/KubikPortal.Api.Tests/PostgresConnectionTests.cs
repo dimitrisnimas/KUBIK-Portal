@@ -16,5 +16,6 @@ public sealed class PostgresConnectionTests
         Assert.Equal("database.internal", parsed.Host);
         Assert.Equal(5433, parsed.Port);
         Assert.Equal("portal_demo", parsed.Database);
+        Assert.Equal(SslMode.VerifyFull, parsed.SslMode);
     }
 }

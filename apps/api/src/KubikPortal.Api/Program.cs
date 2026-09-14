@@ -31,18 +31,20 @@ builder.Services.AddOptions<DemoOptions>()
     .Validate(options => options.OtpResendSeconds is >= 15 and <= 600, "Το OTP resend interval πρέπει να είναι από 15 έως 600 δευτερόλεπτα.")
     .Validate(options => options.CleanupIntervalMinutes is >= 1 and <= 60, "Το cleanup interval πρέπει να είναι από 1 έως 60 λεπτά.")
     .ValidateOnStart();
-builder.Services.AddOptions<SmtpOptions>()
-    .Bind(builder.Configuration.GetSection(SmtpOptions.SectionName))
+builder.Services.AddOptions<BrevoOptions>()
+    .Bind(builder.Configuration.GetSection(BrevoOptions.SectionName))
     .Validate(options => !builder.Environment.IsProduction() ||
-        (!string.IsNullOrWhiteSpace(options.Host) && !string.IsNullOrWhiteSpace(options.FromAddress)),
-        "Τα Smtp:Host και Smtp:FromAddress είναι υποχρεωτικά στην παραγωγή.")
-    .Validate(options => string.IsNullOrWhiteSpace(options.Username) || !string.IsNullOrWhiteSpace(options.Password),
-        "Το Smtp:Password είναι υποχρεωτικό όταν έχει οριστεί Smtp:Username.")
+        (!string.IsNullOrWhiteSpace(options.ApiKey) && !string.IsNullOrWhiteSpace(options.FromAddress)),
+        "Τα Brevo:ApiKey και Brevo:FromAddress είναι υποχρεωτικά στην παραγωγή.")
     .ValidateOnStart();
 if (builder.Environment.IsProduction() && (builder.Configuration["Demo:OtpHashSecret"]?.Length ?? 0) < 32)
     throw new InvalidOperationException("Το Demo:OtpHashSecret πρέπει να έχει τουλάχιστον 32 χαρακτήρες στην παραγωγή.");
 builder.Services.AddSingleton<OtpCodeProtector>();
-builder.Services.AddScoped<OtpDeliveryService>();
+builder.Services.AddHttpClient<OtpDeliveryService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.brevo.com/v3/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddScoped<DemoWorkspaceFactory>();
 builder.Services.AddSingleton<InvoicePdfGenerator>();
 builder.Services.AddHostedService<ExpiredWorkspaceCleanupService>();

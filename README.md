@@ -21,7 +21,7 @@
 3. Αντιγράψτε το `apps/web/.env.example` σε `apps/web/.env.local`.
 4. Εκτελέστε `npm install --prefix apps/web` και `npm run dev:web`.
 
-Στο Development το API μπορεί να επιστρέφει τον OTP στη φόρμα όταν `Demo__RevealOtpInDevelopment=true`. Η τιμή παραγωγής πρέπει να είναι `false` και απαιτείται SMTP configuration. OTPs, email περιεχόμενο και credentials δεν καταγράφονται.
+Στο Development το API μπορεί να επιστρέφει τον OTP στη φόρμα όταν `Demo__RevealOtpInDevelopment=true`. Η τιμή παραγωγής πρέπει να είναι `false` και στην παραγωγή απαιτούνται `Brevo__ApiKey` και επαληθευμένο `Brevo__FromAddress`. OTPs, email περιεχόμενο και credentials δεν καταγράφονται.
 
 ## Έλεγχοι
 
@@ -36,8 +36,8 @@ npm run build:web
 
 ## Παραγωγή
 
-Το backend αναπτύσσεται στο Render από το `render.yaml` και το frontend στο Vercel με root directory `apps/web`. Στο Vercel ορίστε `API_ORIGIN` στο origin του Render service. Το `next.config.ts` προωθεί το browser `/api/*` στο backend, ώστε το authentication cookie να παραμένει same-origin. Δεν υπάρχει staging environment.
+Το backend αναπτύσσεται στο Render από το `render.yaml`, χρησιμοποιεί εξωτερικό Neon PostgreSQL και το frontend αναπτύσσεται στο Vercel με root directory `apps/web`. Στο Render ορίστε ως `ConnectionStrings__Portal` το direct, non-pooled Neon URL. Στο Vercel ορίστε `API_ORIGIN` στο origin του Render service. Το `next.config.ts` προωθεί το browser `/api/*` στο backend, ώστε το authentication cookie να παραμένει same-origin. Δεν υπάρχει staging environment.
 
-Το `Demo__Enabled=true` είναι απαραίτητο για την επιλογή προσομοιωμένης persona. Τα SMTP secrets ορίζονται αποκλειστικά ως environment variables. Δεν υπάρχουν analytics tags, object storage ή εξωτερικές παραγωγικές συνδέσεις KUBIK.
+Το `Demo__Enabled=true` είναι απαραίτητο για την επιλογή προσομοιωμένης persona. Το Brevo API key και το Neon connection string ορίζονται αποκλειστικά ως Render secrets. Δεν υπάρχουν analytics tags, object storage ή εξωτερικές παραγωγικές συνδέσεις KUBIK.
 
 Στην παραγωγή το API εκπέμπει JSON console logs με correlation ID, route template, status και διάρκεια, καθώς και built-in `System.Diagnostics.Metrics` counters/histogram για HTTP requests. Δεν καταγράφονται query strings, OTPs, email περιεχόμενο ή στοιχεία persona. Τα API responses είναι `no-store` και τόσο το Render API όσο και το Vercel frontend επιστρέφουν security headers.

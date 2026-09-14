@@ -22,7 +22,7 @@ public static class PostgresConnection
             Username = Uri.UnescapeDataString(credentials[0]),
             Password = Uri.UnescapeDataString(credentials[1]),
             Database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/')),
-            SslMode = SslMode.Prefer
+            SslMode = SslMode.VerifyFull
         };
         return builder.ConnectionString;
     }

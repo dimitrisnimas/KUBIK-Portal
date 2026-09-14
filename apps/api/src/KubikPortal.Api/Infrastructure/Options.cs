@@ -11,14 +11,10 @@ public sealed class DemoOptions
     public int CleanupIntervalMinutes { get; init; } = 5;
 }
 
-public sealed class SmtpOptions
+public sealed class BrevoOptions
 {
-    public const string SectionName = "Smtp";
-    public string Host { get; init; } = "";
-    public int Port { get; init; } = 587;
-    public bool UseSsl { get; init; } = true;
-    public string Username { get; init; } = "";
-    public string Password { get; init; } = "";
+    public const string SectionName = "Brevo";
+    public string ApiKey { get; init; } = "";
     public string FromAddress { get; init; } = "";
     public string FromName { get; init; } = "KUBIK Portal Demo";
 }

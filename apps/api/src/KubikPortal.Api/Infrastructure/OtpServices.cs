@@ -1,6 +1,5 @@
 using System.Globalization;
-using System.Net;
-using System.Net.Mail;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Options;
@@ -25,7 +24,8 @@ public sealed class OtpCodeProtector(IConfiguration configuration)
 }
 
 public sealed class OtpDeliveryService(
-    IOptions<SmtpOptions> smtpOptions,
+    HttpClient httpClient,
+    IOptions<BrevoOptions> brevoOptions,
     IOptions<DemoOptions> demoOptions,
     IWebHostEnvironment environment)
 {
@@ -36,31 +36,23 @@ public sealed class OtpDeliveryService(
             return code;
         }
 
-        var options = smtpOptions.Value;
-        if (string.IsNullOrWhiteSpace(options.Host) || string.IsNullOrWhiteSpace(options.FromAddress))
+        var options = brevoOptions.Value;
+        if (string.IsNullOrWhiteSpace(options.ApiKey) || string.IsNullOrWhiteSpace(options.FromAddress))
         {
             throw new InvalidOperationException("Η αποστολή email δεν έχει ρυθμιστεί.");
         }
-
-        using var message = new MailMessage
-        {
-            From = new MailAddress(options.FromAddress, options.FromName, Encoding.UTF8),
-            Subject = "Κωδικός πρόσβασης στο KUBIK Portal Demo",
-            Body = $"Ο κωδικός επαλήθευσής σας είναι {code}. Ισχύει για {demoOptions.Value.OtpLifetimeMinutes.ToString(CultureInfo.InvariantCulture)} λεπτά.",
-            BodyEncoding = Encoding.UTF8,
-            SubjectEncoding = Encoding.UTF8
-        };
-        message.To.Add(recipient);
-
-        using var client = new SmtpClient(options.Host, options.Port)
-        {
-            EnableSsl = options.UseSsl,
-            Credentials = string.IsNullOrWhiteSpace(options.Username)
-                ? CredentialCache.DefaultNetworkCredentials
-                : new NetworkCredential(options.Username, options.Password)
-        };
-        cancellationToken.ThrowIfCancellationRequested();
-        await client.SendMailAsync(message, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "smtp/email");
+        request.Headers.Add("api-key", options.ApiKey);
+        request.Content = JsonContent.Create(new BrevoEmailRequest(
+            new BrevoAddress(options.FromAddress, options.FromName),
+            [new BrevoAddress(recipient, null)],
+            "Κωδικός πρόσβασης στο KUBIK Portal Demo",
+            $"Ο κωδικός επαλήθευσής σας είναι {code}. Ισχύει για {demoOptions.Value.OtpLifetimeMinutes.ToString(CultureInfo.InvariantCulture)} λεπτά."));
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
         return null;
     }
+
+    private sealed record BrevoAddress(string Email, string? Name);
+    private sealed record BrevoEmailRequest(BrevoAddress Sender, IReadOnlyList<BrevoAddress> To, string Subject, string TextContent);
 }

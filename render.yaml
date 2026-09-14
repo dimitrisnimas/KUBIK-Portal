@@ -11,21 +11,12 @@ services:
       - key: Demo__Enabled
         value: true
       - key: ConnectionStrings__Portal
-        fromDatabase:
-          name: kubik-portal-db
-          property: connectionString
+        sync: false
       - key: Demo__OtpHashSecret
         generateValue: true
-      - key: Smtp__Host
+      - key: Brevo__ApiKey
         sync: false
-      - key: Smtp__Username
+      - key: Brevo__FromAddress
         sync: false
-      - key: Smtp__Password
-        sync: false
-      - key: Smtp__FromAddress
-        sync: false
-
-databases:
-  - name: kubik-portal-db
-    databaseName: kubik_portal
-    user: kubik_portal
+      - key: Brevo__FromName
+        value: KUBIK Portal Demo
